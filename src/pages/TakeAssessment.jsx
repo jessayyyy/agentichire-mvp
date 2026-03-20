@@ -282,10 +282,12 @@ export default function TakeAssessment() {
         adaptiveQuestions.push(question)
       }
 
-      setAllQuestions([...allQuestions, ...adaptiveQuestions])
-      setTotalQuestions(6 + adaptiveCount)
-      setAdaptiveQuestionsGenerated(true)
-      setIsGeneratingAdaptive(false)
+    setAllQuestions([...allQuestions, ...adaptiveQuestions])
+    const newTotal = 6 + adaptiveCount          // ← add this line
+    setTotalQuestions(newTotal)
+    setAdaptiveQuestionsGenerated(true)
+    setIsGeneratingAdaptive(false)
+    return newTotal                              // ← add this line
 
     } catch (error) {
       console.error('Error generating adaptive questions:', error)
@@ -305,10 +307,12 @@ export default function TakeAssessment() {
         }
       ]
 
-      setAllQuestions([...allQuestions, ...fallback])
-      setTotalQuestions(6 + 3)
-      setAdaptiveQuestionsGenerated(true)
-      setIsGeneratingAdaptive(false)
+    setAllQuestions([...allQuestions, ...fallback])
+    const newTotal = 6 + 3                      // ← add this line
+    setTotalQuestions(newTotal)
+    setAdaptiveQuestionsGenerated(true)
+    setIsGeneratingAdaptive(false)
+    return newTotal                             // ← add this line
     }
   }
 
