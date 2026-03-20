@@ -185,7 +185,7 @@ export default function ViewResults() {
                 </table>
               </div>
             )}
-          </div>{/* ✅ closes leaderboard bg-white div */}
+          </div>
 
           {/* Detailed View */}
           {selectedCandidate && (
@@ -269,9 +269,9 @@ export default function ViewResults() {
                         {response.copy_paste_attempts > 3 && ' ⚠️'}
                       </div>
                     </div>
-                  </div> {/* ✅ closes response border-b div */}
+                  </div>
                 ))}
-              </div>{/* ✅ closes responses space-y-6 div */}
+              </div>
 
               {/* Summary */}
               <div className="mt-6 pt-6 border-t border-gray-200">
@@ -281,11 +281,11 @@ export default function ViewResults() {
                 </p>
               </div>
 
-            </div> {/* ✅ closes selectedCandidate bg-white div */}
+            </div>
           )}
 
-        </div>{/* ✅ closes space-y-6 div */}
-      </div>{/* ✅ closes max-w-6xl div */}
-    </div> /* ✅ closes min-h-screen div */
+        </div>
+      </div>
+    </div>
   )
 }
