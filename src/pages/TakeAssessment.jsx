@@ -312,47 +312,49 @@ export default function TakeAssessment() {
     }
   }
 
-  const handleNextQuestion = async () => {
-    if (!answer.trim()) {
-      alert('Please provide an answer before continuing')
-      return
-    }
-
-    const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
-
-    await supabase
-      .from('responses')
-      .insert([{
-        candidate_id: candidateId,
-        question_number: currentQuestion + 1,
-        question_text: allQuestions[currentQuestion].question_text,
-        answer_text: answer,
-        typing_pauses: typingStats.pauses,
-        deletion_count: typingStats.deletions,
-        typing_time_seconds: typingTime,
-        copy_paste_attempts: copyPasteAttempts
-      }])
-
-    if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
-      await generateAdaptiveQuestions()
-    }
-
-    const isLastQuestion = totalQuestions && currentQuestion >= totalQuestions - 1
-
-    if (isLastQuestion) {
-      handleSubmitAssessment()
-    } else {
-      setCurrentQuestion(currentQuestion + 1)
-      setAnswer('')
-      setCopyPasteAttempts(0)
-      setTypingStats({
-        pauses: 0,
-        deletions: 0,
-        startTime: Date.now(),
-        lastKeystroke: null
-      })
-    }
+const handleNextQuestion = async () => {
+  if (!answer.trim()) {
+    alert('Please provide an answer before continuing')
+    return
   }
+
+  const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
+
+  await supabase
+    .from('responses')
+    .insert([{
+      candidate_id: candidateId,
+      question_number: currentQuestion + 1,
+      question_text: allQuestions[currentQuestion].question_text,
+      answer_text: answer,
+      typing_pauses: typingStats.pauses,
+      deletion_count: typingStats.deletions,
+      typing_time_seconds: typingTime,
+      copy_paste_attempts: copyPasteAttempts
+    }])
+
+  if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
+    await generateAdaptiveQuestions()
+  }
+
+  // ✅ FIX: fall back to allQuestions.length if totalQuestions is still null
+  const total = totalQuestions || allQuestions.length
+  const isLastQuestion = currentQuestion >= total - 1
+
+  if (isLastQuestion) {
+    handleSubmitAssessment()
+  } else {
+    setCurrentQuestion(currentQuestion + 1)
+    setAnswer('')
+    setCopyPasteAttempts(0)
+    setTypingStats({
+      pauses: 0,
+      deletions: 0,
+      startTime: Date.now(),
+      lastKeystroke: null
+    })
+  }
+}
 
   const handleSubmitAssessment = async () => {
     await supabase
