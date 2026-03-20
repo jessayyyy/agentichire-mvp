@@ -4,42 +4,150 @@ import { supabase } from '../supabaseClient'
 
 export default function CreateAssessment() {
   const navigate = useNavigate()
-  const [roleTitle, setRoleTitle] = useState('')
-  const [questionBank, setQuestionBank] = useState([])
-  const [selectedQuestions, setSelectedQuestions] = useState([])
   const [loading, setLoading] = useState(false)
   const [assessmentLink, setAssessmentLink] = useState('')
+  const [generatedQuestions, setGeneratedQuestions] = useState([])
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
+  
+  // Blueprint fields
+  const [roleTitle, setRoleTitle] = useState('')
+  const [industry, setIndustry] = useState('')
+  const [responsibilities, setResponsibilities] = useState(['', '', ''])
+  const [mustHaveSkills, setMustHaveSkills] = useState(['', '', ''])
+  const [dealBreakers, setDealBreakers] = useState(['', ''])
+  const [challenges, setChallenges] = useState(['', ''])
+  const [focusAreas, setFocusAreas] = useState([])
   
   const employerEmail = localStorage.getItem('employerEmail')
 
   useEffect(() => {
     if (!employerEmail) {
       navigate('/')
-      return
     }
-    loadQuestionBank()
   }, [])
 
-  const loadQuestionBank = async () => {
-    const { data, error } = await supabase
-      .from('question_bank')
-      .select('*')
-      .order('category', { ascending: true })
+  const industries = [
+    'Hospitality',
+    'Food & Beverage',
+    'Retail',
+    'Customer Service',
+    'Healthcare',
+    'Other'
+  ]
 
-    if (!error && data) {
-      setQuestionBank(data)
+  const focusOptions = [
+    'Customer Handling',
+    'Conflict Resolution',
+    'Stress Management',
+    'Teamwork',
+    'Problem-Solving',
+    'Communication',
+    'Work Ethic'
+  ]
+
+  const updateArrayField = (array, setArray, index, value) => {
+    const newArray = [...array]
+    newArray[index] = value
+    setArray(newArray)
+  }
+
+  const addArrayField = (array, setArray) => {
+    setArray([...array, ''])
+  }
+
+  const toggleFocusArea = (area) => {
+    if (focusAreas.includes(area)) {
+      setFocusAreas(focusAreas.filter(a => a !== area))
+    } else {
+      setFocusAreas([...focusAreas, area])
     }
   }
 
-  const toggleQuestion = (question) => {
-    if (selectedQuestions.find(q => q.id === question.id)) {
-      setSelectedQuestions(selectedQuestions.filter(q => q.id !== question.id))
-    } else {
-      if (selectedQuestions.length < 6) {
-        setSelectedQuestions([...selectedQuestions, question])
-      } else {
-        alert('You can only select 6 questions')
-      }
+  const generateQuestionsFromBlueprint = async () => {
+    setIsGeneratingQuestions(true)
+
+    const blueprint = {
+      role_title: roleTitle,
+      industry,
+      responsibilities: responsibilities.filter(r => r.trim()),
+      must_have_skills: mustHaveSkills.filter(s => s.trim()),
+      deal_breakers: dealBreakers.filter(d => d.trim()),
+      challenges: challenges.filter(c => c.trim()),
+      focus_areas: focusAreas
+    }
+
+    try {
+      const prompt = `You are creating a hiring assessment for this role:
+
+Role: ${roleTitle}
+Industry: ${industry}
+
+Key Responsibilities:
+${blueprint.responsibilities.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+Must-Have Skills:
+${blueprint.must_have_skills.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+Deal-Breakers:
+${blueprint.deal_breakers.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+
+Typical Challenges:
+${blueprint.challenges.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+Assessment Focus: ${blueprint.focus_areas.join(', ')}
+
+Generate 6 behavioral interview questions that:
+1. Test the must-have skills
+2. Probe for deal-breaker behaviors
+3. Present realistic challenges for this specific role
+4. Are NOT generic (tailor them to THIS job)
+5. Focus on the priority areas specified
+
+Return ONLY a JSON array with 6 questions (no markdown, no backticks):
+[
+  {
+    "question_text": "specific question here",
+    "ideal_answer_hints": "what a good answer should include"
+  },
+  ...
+]`
+
+      // For MVP, using fallback questions
+      // TODO: Add real Claude API call here
+      const fallbackQuestions = [
+        {
+          question_text: `Tell me about a time you had to handle one of these responsibilities: ${blueprint.responsibilities[0] || 'a key task'}. What was the situation and outcome?`,
+          ideal_answer_hints: 'Specific example, clear actions taken, measurable outcome'
+        },
+        {
+          question_text: `Describe a situation where you demonstrated ${blueprint.must_have_skills[0] || 'a key skill'} under pressure.`,
+          ideal_answer_hints: 'Real scenario, how they applied the skill, positive result'
+        },
+        {
+          question_text: `How would you handle this challenge: ${blueprint.challenges[0] || 'a difficult situation'}?`,
+          ideal_answer_hints: 'Step-by-step approach, consideration of stakeholders, professional resolution'
+        },
+        {
+          question_text: `Tell me about a time you had to balance ${blueprint.responsibilities[0] || 'multiple tasks'} and ${blueprint.responsibilities[1] || 'competing priorities'}. How did you manage?`,
+          ideal_answer_hints: 'Prioritization skills, time management, clear outcome'
+        },
+        {
+          question_text: `Have you ever worked with someone who exhibited these behaviors: ${blueprint.deal_breakers[0] || 'unprofessional conduct'}? How did you handle it?`,
+          ideal_answer_hints: 'Professional approach, conflict resolution, maintained standards'
+        },
+        {
+          question_text: `In ${industry}, ${blueprint.challenges[1] || 'things can change quickly'}. Describe a time you had to adapt on the spot.`,
+          ideal_answer_hints: 'Flexibility, quick thinking, positive adaptation'
+        }
+      ]
+
+      setGeneratedQuestions(fallbackQuestions)
+      setIsGeneratingQuestions(false)
+
+    } catch (error) {
+      console.error('Error generating questions:', error)
+      alert('Error generating questions. Please try again.')
+      setIsGeneratingQuestions(false)
     }
   }
 
@@ -49,12 +157,27 @@ export default function CreateAssessment() {
       return
     }
 
-    if (selectedQuestions.length !== 6) {
-      alert('Please select exactly 6 questions')
+    if (!industry) {
+      alert('Please select an industry')
+      return
+    }
+
+    if (generatedQuestions.length === 0) {
+      alert('Please generate questions first')
       return
     }
 
     setLoading(true)
+
+    const blueprint = {
+      role_title: roleTitle,
+      industry,
+      responsibilities: responsibilities.filter(r => r.trim()),
+      must_have_skills: mustHaveSkills.filter(s => s.trim()),
+      deal_breakers: dealBreakers.filter(d => d.trim()),
+      challenges: challenges.filter(c => c.trim()),
+      focus_areas: focusAreas
+    }
 
     // Create assessment
     const { data: assessment, error: assessmentError } = await supabase
@@ -62,13 +185,15 @@ export default function CreateAssessment() {
       .insert([{
         employer_email: employerEmail,
         role_title: roleTitle,
-        selected_questions: selectedQuestions
+        selected_questions: generatedQuestions,
+        blueprint: blueprint
       }])
       .select()
       .single()
 
     if (assessmentError) {
       alert('Error creating assessment')
+      console.error(assessmentError)
       setLoading(false)
       return
     }
@@ -90,6 +215,7 @@ export default function CreateAssessment() {
 
     if (candidateError) {
       alert('Error generating link')
+      console.error(candidateError)
       setLoading(false)
       return
     }
@@ -102,14 +228,6 @@ export default function CreateAssessment() {
     navigator.clipboard.writeText(assessmentLink)
     alert('Link copied to clipboard!')
   }
-
-  const groupedQuestions = questionBank.reduce((acc, question) => {
-    if (!acc[question.category]) {
-      acc[question.category] = []
-    }
-    acc[question.category].push(question)
-    return acc
-  }, {})
 
   if (assessmentLink) {
     return (
@@ -158,98 +276,192 @@ export default function CreateAssessment() {
           >
             ← Back to Dashboard
           </button>
-          <h1 className="text-3xl font-bold text-blue-600">Create New Assessment</h1>
+          <h1 className="text-3xl font-bold text-blue-600">Create Smart Assessment</h1>
+          <p className="text-gray-600">Fill in the job blueprint to generate tailored questions</p>
         </div>
 
-        {/* Role Title */}
+        {/* Blueprint Form */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <label className="block text-lg font-semibold mb-2">Role Title</label>
-          <input
-            type="text"
-            placeholder="e.g., Front Desk Associate, Customer Service Rep"
-            value={roleTitle}
-            onChange={(e) => setRoleTitle(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
-          />
-        </div>
+          <h2 className="text-xl font-bold mb-4">Job Blueprint</h2>
 
-        {/* Question Selection */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4">
-            Select 6 Questions ({selectedQuestions.length}/6)
-          </h2>
+          {/* Role Title */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Role Title *</label>
+            <input
+              type="text"
+              placeholder="e.g., Front Desk Associate, Barista, Sales Associate"
+              value={roleTitle}
+              onChange={(e) => setRoleTitle(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
 
-          {Object.entries(groupedQuestions).map(([category, questions]) => (
-            <div key={category} className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-3 capitalize">
-                {category.replace('_', ' ')}
-              </h3>
-              <div className="space-y-2">
-                {questions.map((question) => {
-                  const isSelected = selectedQuestions.find(q => q.id === question.id)
-                  return (
-                    <div
-                      key={question.id}
-                      onClick={() => toggleQuestion(question)}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition ${
-                        isSelected
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-1 ${
-                          isSelected
-                            ? 'bg-blue-600 border-blue-600'
-                            : 'border-gray-300'
-                        }`}>
-                          {isSelected && (
-                            <svg className="w-full h-full text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-gray-800">{question.question_text}</p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Difficulty: <span className="capitalize">{question.difficulty}</span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+          {/* Industry */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Industry *</label>
+            <select
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="">Select industry</option>
+              {industries.map(ind => (
+                <option key={ind} value={ind}>{ind}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Key Responsibilities */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Key Responsibilities</label>
+            {responsibilities.map((resp, i) => (
+              <input
+                key={i}
+                type="text"
+                placeholder={`Responsibility ${i + 1}`}
+                value={resp}
+                onChange={(e) => updateArrayField(responsibilities, setResponsibilities, i, e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2"
+              />
+            ))}
+            <button
+              onClick={() => addArrayField(responsibilities, setResponsibilities)}
+              className="text-blue-600 text-sm hover:text-blue-700"
+            >
+              + Add another
+            </button>
+          </div>
+
+          {/* Must-Have Skills */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Must-Have Skills</label>
+            {mustHaveSkills.map((skill, i) => (
+              <input
+                key={i}
+                type="text"
+                placeholder={`Skill ${i + 1}`}
+                value={skill}
+                onChange={(e) => updateArrayField(mustHaveSkills, setMustHaveSkills, i, e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2"
+              />
+            ))}
+            <button
+              onClick={() => addArrayField(mustHaveSkills, setMustHaveSkills)}
+              className="text-blue-600 text-sm hover:text-blue-700"
+            >
+              + Add another
+            </button>
+          </div>
+
+          {/* Deal-Breakers */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Deal-Breakers (What you DON'T want)</label>
+            {dealBreakers.map((db, i) => (
+              <input
+                key={i}
+                type="text"
+                placeholder={`Deal-breaker ${i + 1}`}
+                value={db}
+                onChange={(e) => updateArrayField(dealBreakers, setDealBreakers, i, e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2"
+              />
+            ))}
+            <button
+              onClick={() => addArrayField(dealBreakers, setDealBreakers)}
+              className="text-blue-600 text-sm hover:text-blue-700"
+            >
+              + Add another
+            </button>
+          </div>
+
+          {/* Typical Challenges */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Typical Challenges in This Role</label>
+            {challenges.map((ch, i) => (
+              <input
+                key={i}
+                type="text"
+                placeholder={`Challenge ${i + 1}`}
+                value={ch}
+                onChange={(e) => updateArrayField(challenges, setChallenges, i, e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-2"
+              />
+            ))}
+            <button
+              onClick={() => addArrayField(challenges, setChallenges)}
+              className="text-blue-600 text-sm hover:text-blue-700"
+            >
+              + Add another
+            </button>
+          </div>
+
+          {/* Assessment Focus */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold mb-2">Assessment Focus Areas</label>
+            <div className="grid grid-cols-2 gap-2">
+              {focusOptions.map(option => (
+                <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={focusAreas.includes(option)}
+                    onChange={() => toggleFocusArea(option)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">{option}</span>
+                </label>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Generate Questions Button */}
+          <button
+            onClick={generateQuestionsFromBlueprint}
+            disabled={isGeneratingQuestions || !roleTitle || !industry}
+            className={`w-full py-3 rounded-lg font-semibold transition ${
+              isGeneratingQuestions || !roleTitle || !industry
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {isGeneratingQuestions ? '🤖 Generating Questions...' : '✨ Generate Custom Questions'}
+          </button>
         </div>
 
-        {/* Selected Questions Preview */}
-        {selectedQuestions.length > 0 && (
+        {/* Generated Questions Preview */}
+        {generatedQuestions.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-bold mb-4">Selected Questions</h2>
-            <ol className="list-decimal list-inside space-y-2">
-              {selectedQuestions.map((q, index) => (
-                <li key={q.id} className="text-gray-700">
-                  {q.question_text}
+            <h2 className="text-xl font-bold mb-4">Generated Questions (Preview)</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              These 6 questions are tailored to your job description. 
+              The assessment will also include 2-5 adaptive follow-up questions based on candidate responses.
+            </p>
+            <ol className="list-decimal list-inside space-y-3">
+              {generatedQuestions.map((q, i) => (
+                <li key={i} className="text-gray-700">
+                  <span className="font-medium">{q.question_text}</span>
+                  <p className="text-sm text-gray-500 ml-6 mt-1">
+                    Good answer should include: {q.ideal_answer_hints}
+                  </p>
                 </li>
               ))}
             </ol>
           </div>
         )}
 
-        {/* Create Button */}
-        <button
-          onClick={handleCreateAssessment}
-          disabled={loading || selectedQuestions.length !== 6 || !roleTitle.trim()}
-          className={`w-full py-4 rounded-lg font-bold text-lg transition ${
-            loading || selectedQuestions.length !== 6 || !roleTitle.trim()
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {loading ? 'Creating...' : 'Create Assessment & Generate Link'}
-        </button>
+        {/* Create Assessment Button */}
+        {generatedQuestions.length > 0 && (
+          <button
+            onClick={handleCreateAssessment}
+            disabled={loading}
+            className={`w-full py-4 rounded-lg font-bold text-lg transition ${
+              loading
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {loading ? 'Creating Assessment...' : '🚀 Create Assessment & Generate Link'}
+          </button>
+        )}
       </div>
     </div>
   )
