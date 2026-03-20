@@ -180,23 +180,26 @@ Return ONLY a JSON array with 6 questions (no markdown, no backticks):
     }
 
     // Create assessment
-    const { data: assessment, error: assessmentError } = await supabase
-      .from('assessments')
-      .insert([{
-        employer_email: employerEmail,
-        role_title: roleTitle,
-        selected_questions: generatedQuestions,
-        blueprint: blueprint
-      }])
-      .select()
-      .single()
+console.log('Generated questions:', generatedQuestions)
+console.log('Blueprint:', blueprint)
 
-    if (assessmentError) {
-      alert('Error creating assessment')
-      console.error(assessmentError)
-      setLoading(false)
-      return
-    }
+const { data: assessment, error: assessmentError } = await supabase
+  .from('assessments')
+  .insert([{
+    employer_email: employerEmail,
+    role_title: roleTitle,
+    selected_questions: generatedQuestions,
+    blueprint: blueprint
+  }])
+  .select()
+  .single()
+
+if (assessmentError) {
+  console.error('Assessment error:', assessmentError)
+  alert(`Error creating assessment: ${assessmentError.message}`)
+  setLoading(false)
+  return
+}
 
 // Generate unique link - use assessment ID directly
 const link = `${window.location.origin}/assessment/${assessment.id}`
