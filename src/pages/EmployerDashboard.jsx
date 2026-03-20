@@ -295,3 +295,5 @@ const handleDelete = async () => {
     </div>
   )
 }
+
+export default EmployerDashboard
