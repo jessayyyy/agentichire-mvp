@@ -35,10 +35,10 @@ export default function CreateAssessment() {
     if (selectedQuestions.find(q => q.id === question.id)) {
       setSelectedQuestions(selectedQuestions.filter(q => q.id !== question.id))
     } else {
-      if (selectedQuestions.length < 3) {
+      if (selectedQuestions.length < 6) {
         setSelectedQuestions([...selectedQuestions, question])
       } else {
-        alert('You can only select 3 questions')
+        alert('You can only select 6 questions')
       }
     }
   }
@@ -49,8 +49,8 @@ export default function CreateAssessment() {
       return
     }
 
-    if (selectedQuestions.length !== 3) {
-      alert('Please select exactly 3 questions')
+    if (selectedQuestions.length !== 6) {
+      alert('Please select exactly 6 questions')
       return
     }
 
@@ -176,7 +176,7 @@ export default function CreateAssessment() {
         {/* Question Selection */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-bold mb-4">
-            Select 3 Questions ({selectedQuestions.length}/3)
+            Select 6 Questions ({selectedQuestions.length}/6)
           </h2>
 
           {Object.entries(groupedQuestions).map(([category, questions]) => (
@@ -241,9 +241,9 @@ export default function CreateAssessment() {
         {/* Create Button */}
         <button
           onClick={handleCreateAssessment}
-          disabled={loading || selectedQuestions.length !== 3 || !roleTitle.trim()}
+          disabled={loading || selectedQuestions.length !== 6 || !roleTitle.trim()}
           className={`w-full py-4 rounded-lg font-bold text-lg transition ${
-            loading || selectedQuestions.length !== 3 || !roleTitle.trim()
+            loading || selectedQuestions.length !== 6 || !roleTitle.trim()
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-blue-600 text-white hover:bg-blue-700'
           }`}
