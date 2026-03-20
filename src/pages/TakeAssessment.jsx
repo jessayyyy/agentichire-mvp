@@ -15,7 +15,8 @@ export default function TakeAssessment() {
   const [allQuestions, setAllQuestions] = useState([])
   const [adaptiveQuestionsGenerated, setAdaptiveQuestionsGenerated] = useState(false)
   const [isGeneratingAdaptive, setIsGeneratingAdaptive] = useState(false)
-  const [totalQuestions, setTotalQuestions] = useState(null) // Hidden from user
+  const [totalQuestions, setTotalQuestions] = useState(null)
+  const [copyPasteAttempts, setCopyPasteAttempts] = useState(0)
   const [typingStats, setTypingStats] = useState({
     pauses: 0,
     deletions: 0,
@@ -42,88 +43,81 @@ export default function TakeAssessment() {
     }
   }, [stage, timeRemaining])
 
-const loadAssessment = async () => {
-  const assessmentId = linkId
+  const loadAssessment = async () => {
+    const assessmentId = linkId
 
-  console.log('Loading assessment:', assessmentId)
+    console.log('Loading assessment:', assessmentId)
 
-  // Load the assessment
-  const { data: assessment, error: assessmentError } = await supabase
-    .from('assessments')
-    .select('*')
-    .eq('id', assessmentId)
-    .single()
+    const { data: assessment, error: assessmentError } = await supabase
+      .from('assessments')
+      .select('*')
+      .eq('id', assessmentId)
+      .single()
 
-  console.log('Assessment data:', assessment)
-  console.log('Assessment error:', assessmentError)
+    console.log('Assessment data:', assessment)
+    console.log('Assessment error:', assessmentError)
 
-  if (assessmentError || !assessment) {
-    console.error('Failed to load assessment')
-    setStage('error')
-    return
-  }
-
-  console.log('Selected questions:', assessment.selected_questions)
-
-  setAssessment(assessment)
-  setAllQuestions(assessment.selected_questions || [])
-  setStage('info')
-}
-const handleStart = async () => {
-  if (!candidateName.trim() || !candidateEmail.trim()) {
-    alert('Please enter your name and email')
-    return
-  }
-
-  // Check if this email already took this assessment
-  const { data: existingCandidate } = await supabase
-    .from('candidates')
-    .select('*')
-    .eq('assessment_id', linkId)
-    .eq('email', candidateEmail.toLowerCase().trim())
-    .maybeSingle()
-
-  if (existingCandidate) {
-    if (existingCandidate.status === 'completed') {
-      alert('This email has already completed this assessment. Please contact the employer if you believe this is an error.')
-      return
-    } else if (existingCandidate.status === 'in_progress') {
-      // Let them continue their existing attempt
-      setCandidateId(existingCandidate.id)
-      setStage('assessment')
-      setTypingStats({ ...typingStats, startTime: Date.now() })
+    if (assessmentError || !assessment) {
+      console.error('Failed to load assessment')
+      setStage('error')
       return
     }
+
+    console.log('Selected questions:', assessment.selected_questions)
+
+    setAssessment(assessment)
+    setAllQuestions(assessment.selected_questions || [])
+    setStage('info')
   }
 
-  // Create a NEW candidate entry
-  const { data: newCandidate, error: candidateError } = await supabase
-    .from('candidates')
-    .insert([{
-      assessment_id: linkId,
-      name: candidateName,
-      email: candidateEmail.toLowerCase().trim(),
-      link_id: crypto.randomUUID(),
-      status: 'in_progress',
-      started_at: new Date().toISOString()
-    }])
-    .select()
-    .single()
+  const handleStart = async () => {
+    if (!candidateName.trim() || !candidateEmail.trim()) {
+      alert('Please enter your name and email')
+      return
+    }
 
-  if (candidateError || !newCandidate) {
-    alert('Error starting assessment. Please try again.')
-    console.error(candidateError)
-    return
+    const { data: existingCandidate } = await supabase
+      .from('candidates')
+      .select('*')
+      .eq('assessment_id', linkId)
+      .eq('email', candidateEmail.toLowerCase().trim())
+      .maybeSingle()
+
+    if (existingCandidate) {
+      if (existingCandidate.status === 'completed') {
+        alert('This email has already completed this assessment. Please contact the employer if you believe this is an error.')
+        return
+      } else if (existingCandidate.status === 'in_progress') {
+        setCandidateId(existingCandidate.id)
+        setStage('assessment')
+        setTypingStats({ ...typingStats, startTime: Date.now() })
+        return
+      }
+    }
+
+    const { data: newCandidate, error: candidateError } = await supabase
+      .from('candidates')
+      .insert([{
+        assessment_id: linkId,
+        name: candidateName,
+        email: candidateEmail.toLowerCase().trim(),
+        link_id: crypto.randomUUID(),
+        status: 'in_progress',
+        started_at: new Date().toISOString()
+      }])
+      .select()
+      .single()
+
+    if (candidateError || !newCandidate) {
+      alert('Error starting assessment. Please try again.')
+      console.error(candidateError)
+      return
+    }
+
+    setCandidateId(newCandidate.id)
+    setStage('assessment')
+    setTypingStats({ ...typingStats, startTime: Date.now() })
   }
-
-  setCandidateId(newCandidate.id)
-  setStage('assessment')
-  setTypingStats({ ...typingStats, startTime: Date.now() })
-}
-
-  setStage('assessment')
-  setTypingStats({ ...typingStats, startTime: Date.now() })
-}
 
   const handleKeyDown = (e) => {
     const now = Date.now()
@@ -148,23 +142,18 @@ const handleStart = async () => {
     }))
   }
 
-const [copyPasteAttempts, setCopyPasteAttempts] = useState(0)
-
-const handlePaste = (e) => {
-  e.preventDefault() // Still block it
-  setCopyPasteAttempts(prev => prev + 1) // Track silently
-  // No alert - candidate doesn't know
-}
+  const handlePaste = (e) => {
+    e.preventDefault()
+    setCopyPasteAttempts(prev => prev + 1)
+  }
 
   const analyzeAnswerQuality = (answerText) => {
-    let qualityScore = 5 // Base score
+    let qualityScore = 5
 
-    // Length analysis
     const wordCount = answerText.split(' ').filter(w => w.length > 0).length
     if (wordCount < 20) qualityScore -= 2
     else if (wordCount > 80) qualityScore += 1
 
-    // Specific example detection
     const exampleIndicators = [
       'for example', 'for instance', 'one time', 'last week', 'last month',
       'i remember', 'there was', 'i once', 'in my previous', 'when i worked'
@@ -174,14 +163,12 @@ const handlePaste = (e) => {
     )
     if (!hasExample) qualityScore -= 1.5
 
-    // Vague language detection
     const vagueWords = ['maybe', 'probably', 'i think', 'i guess', 'kind of', 'sort of']
     const vagueCount = vagueWords.filter(word => 
       answerText.toLowerCase().includes(word)
     ).length
     if (vagueCount > 2) qualityScore -= 1
 
-    // Generic response detection
     const genericPhrases = [
       'i would', 'i will', 'i believe', 'my approach would be',
       'i typically', 'generally'
@@ -191,7 +178,6 @@ const handlePaste = (e) => {
     ).length
     if (genericCount > 3) qualityScore -= 1
 
-    // Detail level (sentence structure)
     const sentences = answerText.split(/[.!?]+/).filter(s => s.trim().length > 10)
     if (sentences.length < 2) qualityScore -= 1
     else if (sentences.length > 5) qualityScore += 0.5
@@ -203,7 +189,6 @@ const handlePaste = (e) => {
     setIsGeneratingAdaptive(true)
 
     try {
-      // Get first 6 responses
       const { data: responses } = await supabase
         .from('responses')
         .select('*')
@@ -215,7 +200,6 @@ const handlePaste = (e) => {
         throw new Error('Not enough responses')
       }
 
-      // Analyze each response quality
       const qualityScores = responses.map(r => ({
         question: r.question_text,
         answer: r.answer_text,
@@ -226,54 +210,42 @@ const handlePaste = (e) => {
       const weakAnswers = qualityScores.filter(q => q.score < 5)
       const vagueAnswers = qualityScores.filter(q => q.answer.split(' ').length < 30)
 
-      // Decide adaptive question count based on performance
       let adaptiveCount
       if (avgQuality >= 7 && weakAnswers.length <= 1) {
-        adaptiveCount = 2 // Strong candidate, minimal probing
+        adaptiveCount = 2
       } else if (avgQuality >= 5.5 && weakAnswers.length <= 3) {
-        adaptiveCount = 3 // Decent, standard follow-up
+        adaptiveCount = 3
       } else if (weakAnswers.length >= 4 || vagueAnswers.length >= 4) {
-        adaptiveCount = 5 // Major concerns, deep dive
+        adaptiveCount = 5
       } else {
-        adaptiveCount = 4 // Middle ground
+        adaptiveCount = 4
       }
 
       console.log(`Generating ${adaptiveCount} adaptive questions based on performance`)
 
-      // Build context for AI
-      const weakSpots = weakAnswers.map(wa => 
-        `Q: "${wa.question}"\nA: "${wa.answer.substring(0, 150)}..." (vague/weak)`
-      ).join('\n\n')
-
-      // Generate VERY SPECIFIC adaptive questions
       const adaptiveQuestions = []
 
-      // Strategy: Target the weakest answers with laser-focused follow-ups
       for (let i = 0; i < adaptiveCount; i++) {
         const targetAnswer = weakAnswers[i] || qualityScores[i]
         
         let question
         if (targetAnswer.answer.split(' ').length < 30) {
-          // Too brief - demand specifics
           question = {
             question_text: `Earlier you mentioned "${targetAnswer.answer.substring(0, 50)}..." - I need you to walk me through that situation in detail. What EXACTLY happened, what did YOU specifically do, and what was the measurable outcome?`,
             ideal_answer_hints: 'Detailed step-by-step account, specific actions taken, concrete results'
           }
         } else if (!targetAnswer.answer.toLowerCase().includes('example') && 
                    !targetAnswer.answer.toLowerCase().includes('time')) {
-          // Theoretical answer - demand real example
           question = {
             question_text: `You described what you "would do" regarding "${targetAnswer.question.substring(0, 60)}..." - Give me a REAL example from your actual experience where you faced this exact situation. What happened?`,
             ideal_answer_hints: 'Real past experience, not hypothetical, specific details'
           }
         } else if (targetAnswer.answer.toLowerCase().split('i').length > 5) {
-          // Too self-focused - probe for collaboration
           question = {
             question_text: `In the situation you described about "${targetAnswer.question.substring(0, 40)}...", how did others (coworkers, customers, managers) react to your actions? What did THEY say or do?`,
             ideal_answer_hints: 'External perspective, feedback from others, impact on relationships'
           }
         } else {
-          // Generic probing based on blueprint
           const blueprint = assessment.blueprint || {}
           const challenge = blueprint.challenges?.[i] || 'unexpected problems'
           question = {
@@ -293,7 +265,6 @@ const handlePaste = (e) => {
     } catch (error) {
       console.error('Error generating adaptive questions:', error)
       
-      // Fallback: 3 generic follow-ups
       const fallback = [
         {
           question_text: "Pick one of your previous answers and give me significantly more detail - what specifically happened, step by step?",
@@ -324,26 +295,23 @@ const handlePaste = (e) => {
 
     const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
 
-    // Save response
-await supabase
-  .from('responses')
-  .insert([{
-    candidate_id: candidateId,
-    question_number: currentQuestion + 1,
-    question_text: allQuestions[currentQuestion].question_text,
-    answer_text: answer,
-    typing_pauses: typingStats.pauses,
-    deletion_count: typingStats.deletions,
-    typing_time_seconds: typingTime,
-    copy_paste_attempts: copyPasteAttempts // ADD THIS
-  }])
+    await supabase
+      .from('responses')
+      .insert([{
+        candidate_id: candidateId,
+        question_number: currentQuestion + 1,
+        question_text: allQuestions[currentQuestion].question_text,
+        answer_text: answer,
+        typing_pauses: typingStats.pauses,
+        deletion_count: typingStats.deletions,
+        typing_time_seconds: typingTime,
+        copy_paste_attempts: copyPasteAttempts
+      }])
 
-    // After question 6, generate adaptive questions
     if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
       await generateAdaptiveQuestions()
     }
 
-    // Check if we're done
     const isLastQuestion = totalQuestions && currentQuestion >= totalQuestions - 1
 
     if (isLastQuestion) {
@@ -351,6 +319,7 @@ await supabase
     } else {
       setCurrentQuestion(currentQuestion + 1)
       setAnswer('')
+      setCopyPasteAttempts(0)
       setTypingStats({
         pauses: 0,
         deletions: 0,
@@ -369,7 +338,6 @@ await supabase
       })
       .eq('id', candidateId)
 
-    // Trigger AI scoring
     await scoreAllAnswers()
 
     setStage('completed')
@@ -387,210 +355,192 @@ await supabase
           answer_text: answer,
           typing_pauses: typingStats.pauses,
           deletion_count: typingStats.deletions,
-          typing_time_seconds: typingTime
+          typing_time_seconds: typingTime,
+          copy_paste_attempts: copyPasteAttempts
         }])
     }
 
     handleSubmitAssessment()
   }
 
-const scoreAllAnswers = async () => {
-  console.log('Starting AI scoring with Hugging Face...')
-  
-  const { data: responses } = await supabase
-    .from('responses')
-    .select('*')
-    .eq('candidate_id', candidateId)
+  const scoreAllAnswers = async () => {
+    console.log('Starting AI scoring with Hugging Face...')
+    
+    const { data: responses } = await supabase
+      .from('responses')
+      .select('*')
+      .eq('candidate_id', candidateId)
 
-  if (!responses || responses.length === 0) {
-    console.log('No responses to score')
-    return
+    if (!responses || responses.length === 0) {
+      console.log('No responses to score')
+      return
+    }
+
+    console.log(`Scoring ${responses.length} responses...`)
+
+    for (let i = 0; i < responses.length; i++) {
+      const response = responses[i]
+      console.log(`Scoring response ${i + 1}/${responses.length}`)
+
+      try {
+        const analysis = await analyzeAnswerWithAI(response.answer_text)
+        
+        let score = 5
+        
+        if (analysis.isSpecific) score += 2
+        if (analysis.isProfessional) score += 1.5
+        if (analysis.hasExperience) score += 1.5
+        if (analysis.isVague) score -= 2
+        if (analysis.isUnprofessional) score -= 1.5
+        
+        const wordCount = response.answer_text.split(' ').length
+        if (wordCount > 100) score += 0.5
+        if (wordCount < 30) score -= 1
+        
+        score = Math.max(1, Math.min(10, score))
+        
+        const feedback = generateAIFeedback(analysis, wordCount, score)
+
+        await supabase
+          .from('responses')
+          .update({
+            ai_score: score,
+            ai_feedback: feedback
+          })
+          .eq('id', response.id)
+
+        console.log(`✅ Scored response ${i + 1}: ${score.toFixed(1)}/10`)
+
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+      } catch (error) {
+        console.error(`Error scoring response ${i + 1}:`, error)
+        
+        const fallbackScore = analyzeAnswerQuality(response.answer_text)
+        await supabase
+          .from('responses')
+          .update({
+            ai_score: fallbackScore,
+            ai_feedback: 'AI analysis unavailable. Score based on basic quality metrics.'
+          })
+          .eq('id', response.id)
+      }
+    }
+
+    console.log('Finished scoring all responses')
   }
 
-  console.log(`Scoring ${responses.length} responses...`)
-
-  for (let i = 0; i < responses.length; i++) {
-    const response = responses[i]
-    console.log(`Scoring response ${i + 1}/${responses.length}`)
-
+  const analyzeAnswerWithAI = async (answerText) => {
     try {
-      // Use Hugging Face to analyze the answer
-      const analysis = await analyzeAnswerWithAI(response.answer_text)
-      
-      // Calculate score based on AI analysis
-      let score = 5 // Base score
-      
-      // Adjust based on sentiment and quality indicators
-      if (analysis.isSpecific) score += 2
-      if (analysis.isProfessional) score += 1.5
-      if (analysis.hasExperience) score += 1.5
-      if (analysis.isVague) score -= 2
-      if (analysis.isUnprofessional) score -= 1.5
-      
-      // Adjust based on answer length and structure
-      const wordCount = response.answer_text.split(' ').length
-      if (wordCount > 100) score += 0.5
-      if (wordCount < 30) score -= 1
-      
-      score = Math.max(1, Math.min(10, score))
-      
-      // Generate detailed feedback
-      const feedback = generateAIFeedback(analysis, wordCount, score)
+      const response = await fetch(
+        "https://api-inference.huggingface.co/models/facebook/bart-large-mnli",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            inputs: answerText,
+            parameters: {
+              candidate_labels: [
+                "specific and detailed answer with examples",
+                "vague and generic response",
+                "professional and articulate",
+                "unprofessional or casual",
+                "demonstrates real experience",
+                "lacks concrete experience",
+                "confident and assertive",
+                "uncertain or evasive"
+              ],
+              multi_label: true
+            }
+          })
+        }
+      )
 
-      // Save to database
-      await supabase
-        .from('responses')
-        .update({
-          ai_score: score,
-          ai_feedback: feedback
-        })
-        .eq('id', response.id)
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
 
-      console.log(`✅ Scored response ${i + 1}: ${score.toFixed(1)}/10`)
+      const data = await response.json()
+      
+      const scores = {}
+      data.labels.forEach((label, index) => {
+        scores[label] = data.scores[index]
+      })
 
-      // Small delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      return {
+        isSpecific: scores["specific and detailed answer with examples"] > 0.5,
+        isVague: scores["vague and generic response"] > 0.5,
+        isProfessional: scores["professional and articulate"] > 0.5,
+        isUnprofessional: scores["unprofessional or casual"] > 0.5,
+        hasExperience: scores["demonstrates real experience"] > 0.5,
+        isConfident: scores["confident and assertive"] > 0.5,
+        topLabel: data.labels[0],
+        topScore: data.scores[0]
+      }
 
     } catch (error) {
-      console.error(`Error scoring response ${i + 1}:`, error)
-      
-      // Fallback scoring
-      const fallbackScore = analyzeAnswerQuality(response.answer_text)
-      await supabase
-        .from('responses')
-        .update({
-          ai_score: fallbackScore,
-          ai_feedback: 'AI analysis unavailable. Score based on basic quality metrics.'
-        })
-        .eq('id', response.id)
-    }
-  }
-
-  console.log('Finished scoring all responses')
-}
-
-// Add this new function for Hugging Face AI analysis
-const analyzeAnswerWithAI = async (answerText) => {
-  try {
-    // Use Hugging Face zero-shot classification model
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/facebook/bart-large-mnli",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.HUGGINGFACE_API_KEY || ''}`
-        },
-        body: JSON.stringify({
-          inputs: answerText,
-          parameters: {
-            candidate_labels: [
-              "specific and detailed answer with examples",
-              "vague and generic response",
-              "professional and articulate",
-              "unprofessional or casual",
-              "demonstrates real experience",
-              "lacks concrete experience",
-              "confident and assertive",
-              "uncertain or evasive"
-            ],
-            multi_label: true
-          }
-        })
+      console.error('Hugging Face API error:', error)
+      return {
+        isSpecific: /example|instance|time when|specifically/i.test(answerText),
+        isVague: answerText.split(' ').length < 50,
+        isProfessional: true,
+        isUnprofessional: false,
+        hasExperience: /previous|experience|worked|role/i.test(answerText),
+        isConfident: true,
+        topLabel: "analysis unavailable",
+        topScore: 0
       }
-    )
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    
-    // Parse the classification results
-    const scores = {}
-    data.labels.forEach((label, index) => {
-      scores[label] = data.scores[index]
-    })
-
-    // Determine characteristics based on scores
-    return {
-      isSpecific: scores["specific and detailed answer with examples"] > 0.5,
-      isVague: scores["vague and generic response"] > 0.5,
-      isProfessional: scores["professional and articulate"] > 0.5,
-      isUnprofessional: scores["unprofessional or casual"] > 0.5,
-      hasExperience: scores["demonstrates real experience"] > 0.5,
-      isConfident: scores["confident and assertive"] > 0.5,
-      topLabel: data.labels[0],
-      topScore: data.scores[0]
-    }
-
-  } catch (error) {
-    console.error('Hugging Face API error:', error)
-    // Fallback to basic analysis
-    return {
-      isSpecific: /example|instance|time when|specifically/i.test(answerText),
-      isVague: answerText.split(' ').length < 50,
-      isProfessional: !/slang|casual phrases/i.test(answerText),
-      isUnprofessional: false,
-      hasExperience: /previous|experience|worked|role/i.test(answerText),
-      isConfident: true,
-      topLabel: "analysis unavailable",
-      topScore: 0
     }
   }
-}
 
-// Add this helper function for detailed feedback
-const generateAIFeedback = (analysis, wordCount, score) => {
-  let feedback = []
+  const generateAIFeedback = (analysis, wordCount, score) => {
+    let feedback = []
 
-  // Positive aspects
-  if (analysis.isSpecific) {
-    feedback.push("Provides specific details and examples")
-  }
-  if (analysis.isProfessional) {
-    feedback.push("Professional and well-articulated communication")
-  }
-  if (analysis.hasExperience) {
-    feedback.push("Demonstrates relevant experience")
-  }
-  if (analysis.isConfident) {
-    feedback.push("Confident and assertive tone")
-  }
+    if (analysis.isSpecific) {
+      feedback.push("Provides specific details and examples")
+    }
+    if (analysis.isProfessional) {
+      feedback.push("Professional and well-articulated communication")
+    }
+    if (analysis.hasExperience) {
+      feedback.push("Demonstrates relevant experience")
+    }
+    if (analysis.isConfident) {
+      feedback.push("Confident and assertive tone")
+    }
 
-  // Areas for improvement
-  if (analysis.isVague) {
-    feedback.push("Response lacks specific examples")
-  }
-  if (analysis.isUnprofessional) {
-    feedback.push("Could be more professional in tone")
-  }
-  if (wordCount < 50) {
-    feedback.push("Answer is too brief - needs more depth")
-  }
-  if (!analysis.hasExperience) {
-    feedback.push("Should demonstrate more real-world experience")
-  }
+    if (analysis.isVague) {
+      feedback.push("Response lacks specific examples")
+    }
+    if (analysis.isUnprofessional) {
+      feedback.push("Could be more professional in tone")
+    }
+    if (wordCount < 50) {
+      feedback.push("Answer is too brief - needs more depth")
+    }
+    if (!analysis.hasExperience) {
+      feedback.push("Should demonstrate more real-world experience")
+    }
 
-  // Generate summary based on score
-  let summary
-  if (score >= 8) {
-    summary = "Excellent response showing strong capabilities."
-  } else if (score >= 6.5) {
-    summary = "Good answer with minor areas for improvement."
-  } else if (score >= 5) {
-    summary = "Acceptable but needs more depth and specificity."
-  } else {
-    summary = "Answer does not adequately demonstrate required competencies."
-  }
+    let summary
+    if (score >= 8) {
+      summary = "Excellent response showing strong capabilities."
+    } else if (score >= 6.5) {
+      summary = "Good answer with minor areas for improvement."
+    } else if (score >= 5) {
+      summary = "Acceptable but needs more depth and specificity."
+    } else {
+      summary = "Answer does not adequately demonstrate required competencies."
+    }
 
-  // Combine summary with specific feedback
-  if (feedback.length > 0) {
-    return `${summary} ${feedback.join('; ')}.`
-  } else {
-    return summary
+    if (feedback.length > 0) {
+      return `${summary} ${feedback.join('; ')}.`
+    } else {
+      return summary
+    }
   }
-}
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
@@ -598,7 +548,6 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Loading state
   if (stage === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -610,7 +559,6 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     )
   }
 
-  // Error state
   if (stage === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -623,7 +571,6 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     )
   }
 
-  // Already completed state
   if (stage === 'already_completed') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -636,7 +583,6 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     )
   }
 
-  // Info/Start screen
   if (stage === 'info') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -688,9 +634,7 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     )
   }
 
-  // Assessment in progress
   if (stage === 'assessment') {
-    // Show generating message after Q6
     if (currentQuestion === 6 && isGeneratingAdaptive) {
       return (
         <div className="min-h-screen flex items-center justify-center p-4">
@@ -711,13 +655,11 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     return (
       <div className="min-h-screen p-6">
         <div className="max-w-4xl mx-auto">
-          {/* Timer (NO question count shown!) */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-600">Assessment in Progress</p>
                 <div className="w-64 h-2 bg-gray-200 rounded-full mt-2">
-                  {/* Fake progress bar - doesn't reveal total */}
                   <div 
                     className="h-full bg-blue-600 rounded-full transition-all"
                     style={{ width: `${Math.min(90, (currentQuestion + 1) * 12)}%` }}
@@ -733,25 +675,24 @@ const generateAIFeedback = (analysis, wordCount, score) => {
             </div>
           </div>
 
-          {/* Question */}
           <div className="bg-white rounded-lg shadow-md p-8 mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">
               {allQuestions[currentQuestion]?.question_text || 'Loading question...'}
             </h2>
 
-<textarea
-  value={answer}
-  onChange={(e) => setAnswer(e.target.value)}
-  onKeyDown={handleKeyDown}
-  onPaste={handlePaste}
-  onCopy={(e) => {
-    e.preventDefault()
-    setCopyPasteAttempts(prev => prev + 1)
-  }}
-  onCut={(e) => {
-    e.preventDefault()
-    setCopyPasteAttempts(prev => prev + 1)
-  }}
+            <textarea
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onCopy={(e) => {
+                e.preventDefault()
+                setCopyPasteAttempts(prev => prev + 1)
+              }}
+              onCut={(e) => {
+                e.preventDefault()
+                setCopyPasteAttempts(prev => prev + 1)
+              }}
               placeholder="Type your answer here..."
               className="w-full h-64 px-4 py-3 border-2 border-gray-300 rounded-lg text-lg resize-none focus:border-blue-500 focus:outline-none"
             />
@@ -775,7 +716,6 @@ const generateAIFeedback = (analysis, wordCount, score) => {
     )
   }
 
-  // Completed state
   if (stage === 'completed') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -796,5 +736,3 @@ const generateAIFeedback = (analysis, wordCount, score) => {
 
   return null
 }
-
-export default TakeAssessment
