@@ -17,7 +17,6 @@ export default function ViewResults() {
   const loadResults = async () => {
     setLoading(true)
 
-    // Load assessment
     const { data: assessmentData } = await supabase
       .from('assessments')
       .select('*')
@@ -26,7 +25,6 @@ export default function ViewResults() {
 
     setAssessment(assessmentData)
 
-    // Load candidates (only completed ones)
     const { data: candidatesData } = await supabase
       .from('candidates')
       .select('*')
@@ -34,7 +32,6 @@ export default function ViewResults() {
       .eq('status', 'completed')
       .order('completed_at', { ascending: false })
 
-    // Load responses for each candidate
     const candidatesWithResponses = await Promise.all(
       (candidatesData || []).map(async (candidate) => {
         const { data: responses } = await supabase
@@ -55,7 +52,6 @@ export default function ViewResults() {
       })
     )
 
-    // Sort by score (highest first)
     candidatesWithResponses.sort((a, b) => b.avgScore - a.avgScore)
 
     setCandidates(candidatesWithResponses)
@@ -88,6 +84,7 @@ export default function ViewResults() {
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-6xl mx-auto">
+
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <button
@@ -102,6 +99,7 @@ export default function ViewResults() {
 
         {/* Leaderboard View */}
         <div className="space-y-6">
+
           {/* Leaderboard Header */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-4">
@@ -117,7 +115,6 @@ export default function ViewResults() {
               </div>
             </div>
 
-            {/* Leaderboard Table */}
             {candidates.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">No candidates yet.</p>
@@ -140,9 +137,8 @@ export default function ViewResults() {
                     {candidates.map((candidate, index) => {
                       const recommendation = getRecommendation(candidate.avgScore)
                       const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : ''
-                      
                       return (
-                        <tr 
+                        <tr
                           key={candidate.id}
                           className={`border-b border-gray-100 hover:bg-gray-50 transition ${
                             selectedCandidate?.id === candidate.id ? 'bg-blue-50' : ''
@@ -170,7 +166,7 @@ export default function ViewResults() {
                             </span>
                           </td>
                           <td className="py-4 px-4 text-sm text-gray-600">
-                            {candidate.completed_at 
+                            {candidate.completed_at
                               ? new Date(candidate.completed_at).toLocaleDateString()
                               : 'In progress'}
                           </td>
@@ -189,9 +185,9 @@ export default function ViewResults() {
                 </table>
               </div>
             )}
-          </div>
+          </div>{/* ✅ closes leaderboard bg-white div */}
 
-          {/* Detailed View (shown when candidate selected) */}
+          {/* Detailed View */}
           {selectedCandidate && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex justify-between items-start mb-4">
@@ -259,30 +255,23 @@ export default function ViewResults() {
 
                     {response.ai_feedback && (
                       <div className="bg-blue-50 p-3 rounded mb-3">
-                        <p className="text-sm font-semibold text-blue-900 mb-1">
-                          AI Feedback:
-                        </p>
-                        <p className="text-sm text-blue-800">
-                          {response.ai_feedback}
-                        </p>
+                        <p className="text-sm font-semibold text-blue-900 mb-1">AI Feedback:</p>
+                        <p className="text-sm text-blue-800">{response.ai_feedback}</p>
                       </div>
                     )}
 
-<div className="flex gap-4 text-xs text-gray-500">
-  <div>
-    ⏱️ Time: {Math.floor(response.typing_time_seconds / 60)}m {response.typing_time_seconds % 60}s
-  </div>
-  <div>
-    ⏸️ Pauses: {response.typing_pauses}
-  </div>
-  <div>
-    ⌫ Edits: {response.deletion_count}
-  </div>
-  <div className={response.copy_paste_attempts > 0 ? 'text-red-600 font-semibold' : ''}>
-    📋 Copy attempts: {response.copy_paste_attempts || 0}
-    {response.copy_paste_attempts > 3 && ' ⚠️'}
-  </div>
-</div>
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <div>⏱️ Time: {Math.floor(response.typing_time_seconds / 60)}m {response.typing_time_seconds % 60}s</div>
+                      <div>⏸️ Pauses: {response.typing_pauses}</div>
+                      <div>⌫ Edits: {response.deletion_count}</div>
+                      <div className={response.copy_paste_attempts > 0 ? 'text-red-600 font-semibold' : ''}>
+                        📋 Copy attempts: {response.copy_paste_attempts || 0}
+                        {response.copy_paste_attempts > 3 && ' ⚠️'}
+                      </div>
+                    </div>
+                  </div> {/* ✅ closes response border-b div */}
+                ))}
+              </div>{/* ✅ closes responses space-y-6 div */}
 
               {/* Summary */}
               <div className="mt-6 pt-6 border-t border-gray-200">
@@ -291,10 +280,12 @@ export default function ViewResults() {
                   {getRecommendation(selectedCandidate.avgScore).text}
                 </p>
               </div>
-            </div>
+
+            </div> {/* ✅ closes selectedCandidate bg-white div */}
           )}
-        </div>
-      </div>
-    </div>
+
+        </div>{/* ✅ closes space-y-6 div */}
+      </div>{/* ✅ closes max-w-6xl div */}
+    </div> /* ✅ closes min-h-screen div */
   )
 }
