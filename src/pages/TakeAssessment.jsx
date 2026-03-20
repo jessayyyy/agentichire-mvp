@@ -58,42 +58,41 @@ const loadAssessment = async () => {
     return
   }
 
-  // Check if this browser has already completed this assessment
-  const existingCandidateId = localStorage.getItem(`candidate_${assessmentId}`)
-  
-  if (existingCandidateId) {
-    // Check if they already completed
-    const { data: existingCandidate } = await supabase
-      .from('candidates')
-      .select('*')
-      .eq('id', existingCandidateId)
-      .single()
-
-    if (existingCandidate && existingCandidate.status === 'completed') {
-      setStage('already_completed')
-      return
-    }
-  }
-
-  setAssessment(assessment)
-  setAllQuestions(assessment.selected_questions)
-  setStage('info')
-}
-
 const handleStart = async () => {
   if (!candidateName.trim() || !candidateEmail.trim()) {
     alert('Please enter your name and email')
     return
   }
 
-  // Create a NEW candidate entry for this person
+  // Check if this email already took this assessment
+  const { data: existingCandidate } = await supabase
+    .from('candidates')
+    .select('*')
+    .eq('assessment_id', linkId)
+    .eq('email', candidateEmail.toLowerCase().trim())
+    .maybeSingle()
+
+  if (existingCandidate) {
+    if (existingCandidate.status === 'completed') {
+      alert('This email has already completed this assessment. Please contact the employer if you believe this is an error.')
+      return
+    } else if (existingCandidate.status === 'in_progress') {
+      // Let them continue their existing attempt
+      setCandidateId(existingCandidate.id)
+      setStage('assessment')
+      setTypingStats({ ...typingStats, startTime: Date.now() })
+      return
+    }
+  }
+
+  // Create a NEW candidate entry
   const { data: newCandidate, error: candidateError } = await supabase
     .from('candidates')
     .insert([{
-      assessment_id: linkId, // linkId is the assessment ID
+      assessment_id: linkId,
       name: candidateName,
-      email: candidateEmail,
-      link_id: crypto.randomUUID(), // Unique ID for this candidate
+      email: candidateEmail.toLowerCase().trim(),
+      link_id: crypto.randomUUID(),
       status: 'in_progress',
       started_at: new Date().toISOString()
     }])
@@ -102,13 +101,14 @@ const handleStart = async () => {
 
   if (candidateError || !newCandidate) {
     alert('Error starting assessment. Please try again.')
+    console.error(candidateError)
     return
   }
 
   setCandidateId(newCandidate.id)
-  
-  // Store in localStorage to prevent retakes
-  localStorage.setItem(`candidate_${linkId}`, newCandidate.id)
+  setStage('assessment')
+  setTypingStats({ ...typingStats, startTime: Date.now() })
+}
 
   setStage('assessment')
   setTypingStats({ ...typingStats, startTime: Date.now() })
