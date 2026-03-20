@@ -26,12 +26,12 @@ export default function ViewResults() {
 
     setAssessment(assessmentData)
 
-    // Load candidates
+    // Load candidates (only completed ones)
     const { data: candidatesData } = await supabase
       .from('candidates')
       .select('*')
       .eq('assessment_id', assessmentId)
-      .neq('status', 'pending')
+      .eq('status', 'completed')
       .order('completed_at', { ascending: false })
 
     // Load responses for each candidate
@@ -54,6 +54,9 @@ export default function ViewResults() {
         }
       })
     )
+
+    // Sort by score (highest first)
+    candidatesWithResponses.sort((a, b) => b.avgScore - a.avgScore)
 
     setCandidates(candidatesWithResponses)
     setLoading(false)
@@ -97,181 +100,198 @@ export default function ViewResults() {
           <p className="text-gray-600">Role: {assessment?.role_title}</p>
         </div>
 
-        {/* Candidates List */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Left: Candidate Cards */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white mb-4">
-              Candidates ({candidates.length})
-            </h2>
-
-            {candidates.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-md p-8 text-center">
-                <p className="text-gray-500">No completed assessments yet.</p>
+        {/* Leaderboard View */}
+        <div className="space-y-6">
+          {/* Leaderboard Header */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Candidate Leaderboard</h2>
+                <p className="text-gray-600">{candidates.length} candidate{candidates.length !== 1 ? 's' : ''} assessed</p>
               </div>
-            ) : (
-              candidates.map((candidate) => {
-                const recommendation = getRecommendation(candidate.avgScore)
-                return (
-                  <div
-                    key={candidate.id}
-                    onClick={() => setSelectedCandidate(candidate)}
-                    className={`bg-white rounded-lg shadow-md p-6 cursor-pointer transition hover:shadow-lg ${
-                      selectedCandidate?.id === candidate.id ? 'ring-2 ring-blue-600' : ''
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-800">{candidate.name}</h3>
-                        <p className="text-sm text-gray-600">{candidate.email}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">Overall Score</p>
-                        <p className={`text-3xl font-bold ${getScoreColor(candidate.avgScore)}`}>
-                          {candidate.avgScore.toFixed(1)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mb-3">
-                      <p className={`font-semibold ${recommendation.color}`}>
-                        {recommendation.text}
-                      </p>
-                    </div>
-
-                    <div className="flex gap-4 text-sm text-gray-600">
-                      <div>
-                        <span className="font-medium">Status:</span>{' '}
-                        <span className="capitalize">{candidate.status}</span>
-                      </div>
-                      {candidate.completed_at && (
-                        <div>
-                          <span className="font-medium">Completed:</span>{' '}
-                          {new Date(candidate.completed_at).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-
-                    <button className="mt-3 text-blue-600 text-sm font-medium hover:text-blue-700">
-                      View Detailed Results →
-                    </button>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          {/* Right: Detailed View */}
-          <div className="sticky top-6">
-            {selectedCandidate ? (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                  {selectedCandidate.name}'s Responses
-                </h2>
-
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-600">Overall Score</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {selectedCandidate.avgScore.toFixed(1)}/10
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Questions Answered</p>
-                      <p className="text-2xl font-bold text-gray-800">
-                        {selectedCandidate.responses.length}/6
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Individual Responses */}
-                <div className="space-y-6 max-h-[600px] overflow-y-auto">
-                  {selectedCandidate.responses.map((response, index) => (
-                    <div key={response.id} className="border-b border-gray-200 pb-6">
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-bold text-gray-700">
-                          Question {response.question_number}
-                        </h3>
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                          getScoreColor(response.ai_score || 0)
-                        }`}>
-                          {response.ai_score ? response.ai_score.toFixed(1) : 'N/A'}/10
-                        </span>
-                      </div>
-
-                      <p className="text-gray-800 mb-3 font-medium">
-                        {response.question_text}
-                      </p>
-
-                      <div className="bg-gray-50 p-3 rounded mb-3">
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {response.answer_text}
-                        </p>
-                      </div>
-
-                      {response.ai_feedback && (
-                        <div className="bg-blue-50 p-3 rounded mb-3">
-                          <p className="text-sm font-semibold text-blue-900 mb-1">
-                            AI Feedback:
-                          </p>
-                          <p className="text-sm text-blue-800">
-                            {response.ai_feedback}
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex gap-4 text-xs text-gray-500">
-                        <div>
-                          ⏱️ Typing time: {Math.floor(response.typing_time_seconds / 60)}m {response.typing_time_seconds % 60}s
-                        </div>
-                        <div>
-                          ⏸️ Pauses: {response.typing_pauses}
-                        </div>
-                        <div>
-                          ⌫ Deletions: {response.deletion_count}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Summary */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h3 className="font-bold text-gray-800 mb-2">Summary</h3>
-                  <p className={`font-semibold mb-2 ${getRecommendation(selectedCandidate.avgScore).color}`}>
-                    {getRecommendation(selectedCandidate.avgScore).text}
-                  </p>
-                  
-                  {selectedCandidate.avgScore >= 6 && (
-                    <div className="bg-green-50 p-3 rounded">
-                      <p className="text-sm text-green-800">
-                        <strong>Strengths:</strong> This candidate demonstrates good communication 
-                        and provided specific examples in their responses.
-                      </p>
-                    </div>
-                  )}
-                  
-                  {selectedCandidate.avgScore < 6 && (
-                    <div className="bg-yellow-50 p-3 rounded">
-                      <p className="text-sm text-yellow-800">
-                        <strong>Areas of concern:</strong> Responses were somewhat vague and lacked 
-                        specific examples. Consider if additional screening is needed.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <div className="text-5xl mb-4">👈</div>
-                <p className="text-gray-600">
-                  Select a candidate to view detailed results
+              <div className="text-right">
+                <p className="text-sm text-gray-500">Top Score</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {candidates.length > 0 ? candidates[0].avgScore.toFixed(1) : 'N/A'}
                 </p>
               </div>
+            </div>
+
+            {/* Leaderboard Table */}
+            {candidates.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No candidates yet.</p>
+                <p className="text-gray-400 text-sm mt-2">Share the assessment link to get started!</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Rank</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Name</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Score</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Completed</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {candidates.map((candidate, index) => {
+                      const recommendation = getRecommendation(candidate.avgScore)
+                      const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : ''
+                      
+                      return (
+                        <tr 
+                          key={candidate.id}
+                          className={`border-b border-gray-100 hover:bg-gray-50 transition ${
+                            selectedCandidate?.id === candidate.id ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <td className="py-4 px-4">
+                            <span className="text-lg font-bold text-gray-700">
+                              {rankEmoji} #{index + 1}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div>
+                              <p className="font-semibold text-gray-800">{candidate.name}</p>
+                              <p className="text-xs text-gray-500">{candidate.email}</p>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`text-2xl font-bold ${getScoreColor(candidate.avgScore)}`}>
+                              {candidate.avgScore.toFixed(1)}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`text-xs font-semibold ${recommendation.color}`}>
+                              {candidate.avgScore >= 7 ? '✓ Strong' : candidate.avgScore >= 5 ? '~ Moderate' : '✗ Weak'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-sm text-gray-600">
+                            {candidate.completed_at 
+                              ? new Date(candidate.completed_at).toLocaleDateString()
+                              : 'In progress'}
+                          </td>
+                          <td className="py-4 px-4">
+                            <button
+                              onClick={() => setSelectedCandidate(candidate)}
+                              className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+                            >
+                              View Details →
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
+
+          {/* Detailed View (shown when candidate selected) */}
+          {selectedCandidate && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {selectedCandidate.name}'s Detailed Results
+                  </h2>
+                  <p className="text-gray-600">{selectedCandidate.email}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedCandidate(null)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-gray-600 text-sm">Overall Score</p>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {selectedCandidate.avgScore.toFixed(1)}/10
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 text-sm">Questions Answered</p>
+                    <p className="text-3xl font-bold text-gray-800">
+                      {selectedCandidate.responses.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 text-sm">Rank</p>
+                    <p className="text-3xl font-bold text-purple-600">
+                      #{candidates.findIndex(c => c.id === selectedCandidate.id) + 1}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Individual Responses */}
+              <div className="space-y-6 max-h-[600px] overflow-y-auto">
+                {selectedCandidate.responses.map((response) => (
+                  <div key={response.id} className="border-b border-gray-200 pb-6">
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="font-bold text-gray-700">
+                        Question {response.question_number}
+                      </h3>
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                        getScoreColor(response.ai_score || 0)
+                      }`}>
+                        {response.ai_score ? response.ai_score.toFixed(1) : 'N/A'}/10
+                      </span>
+                    </div>
+
+                    <p className="text-gray-800 mb-3 font-medium">
+                      {response.question_text}
+                    </p>
+
+                    <div className="bg-gray-50 p-3 rounded mb-3">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {response.answer_text}
+                      </p>
+                    </div>
+
+                    {response.ai_feedback && (
+                      <div className="bg-blue-50 p-3 rounded mb-3">
+                        <p className="text-sm font-semibold text-blue-900 mb-1">
+                          AI Feedback:
+                        </p>
+                        <p className="text-sm text-blue-800">
+                          {response.ai_feedback}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <div>
+                        ⏱️ Time: {Math.floor(response.typing_time_seconds / 60)}m {response.typing_time_seconds % 60}s
+                      </div>
+                      <div>
+                        ⏸️ Pauses: {response.typing_pauses}
+                      </div>
+                      <div>
+                        ⌫ Edits: {response.deletion_count}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="font-bold text-gray-800 mb-2">Hiring Recommendation</h3>
+                <p className={`font-semibold text-lg ${getRecommendation(selectedCandidate.avgScore).color}`}>
+                  {getRecommendation(selectedCandidate.avgScore).text}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
