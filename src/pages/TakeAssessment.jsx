@@ -339,10 +339,13 @@ const handleNextQuestion = async () => {
       copy_paste_attempts: copyPasteAttempts
     }])
 
+  let total = totalQuestions || allQuestions.length  // ✅ declare with let
+
   if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
-    const newTotal = await generateAdaptiveQuestions() // ✅ capture returned value
-    total = newTotal                                   // ✅ use it directly
+    const newTotal = await generateAdaptiveQuestions()
+    total = newTotal
   }
+
   const isLastQuestion = currentQuestion >= total - 1
 
   if (isLastQuestion) {
