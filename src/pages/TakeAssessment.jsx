@@ -731,25 +731,72 @@ const generateAdaptiveQuestions = async () => {
               className="w-full h-64 px-4 py-3 border-2 border-gray-300 rounded-lg text-lg resize-none focus:border-blue-500 focus:outline-none"
             />
 
-            <div className="flex justify-end items-center mt-4">
+          <div className="flex justify-between items-center mt-4">
+            {/* Previous Button */}
+            {currentQuestion > 0 && currentQuestion < 6 && (
               <button
-                onClick={handleNextQuestion}
-                disabled={!answer.trim()}
-                className={`px-8 py-3 rounded-lg font-semibold transition ${
-                  !answer.trim()
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                onClick={async () => {
+                  // Save current answer if there is one
+                  if (answer.trim()) {
+                    const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
+                    await supabase
+                      .from('responses')
+                      .upsert({
+                        candidate_id: candidateId,
+                        question_number: currentQuestion + 1,
+                        question_text: allQuestions[currentQuestion].question_text,
+                        answer_text: answer,
+                        typing_pauses: typingStats.pauses,
+                        deletion_count: typingStats.deletions,
+                        typing_time_seconds: typingTime,
+                        copy_paste_attempts: copyPasteAttempts
+                      }, {
+                        onConflict: 'candidate_id,question_number'
+                      })
+                  }
+
+                  // Load previous answer
+                  const { data: prevResponse } = await supabase
+                    .from('responses')
+                    .select('*')
+                    .eq('candidate_id', candidateId)
+                    .eq('question_number', currentQuestion)
+                    .single()
+
+                  setCurrentQuestion(currentQuestion - 1)
+                  setAnswer(prevResponse?.answer_text || '')
+                  setCopyPasteAttempts(0)
+                  setTypingStats({
+                    pauses: 0,
+                    deletions: 0,
+                    startTime: Date.now(),
+                    lastKeystroke: null
+                  })
+                }}
+                className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
               >
-                Continue →
+                ← Previous
               </button>
-            </div>
+            )}
+
+            {/* Next/Continue Button */}
+            <button
+              onClick={handleNextQuestion}
+              disabled={!answer.trim()}
+              className={`px-8 py-3 rounded-lg font-semibold transition ml-auto ${
+                !answer.trim()
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              Continue →
+            </button>
           </div>
         </div>
       </div>
-    )
-  }
-
+    </div>
+  )
+}
   if (stage === 'completed') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
