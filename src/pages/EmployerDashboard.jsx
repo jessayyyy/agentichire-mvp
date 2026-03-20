@@ -128,6 +128,7 @@ export default function EmployerDashboard() {
                   key={assessment.id} 
                   assessment={assessment}
                   navigate={navigate}
+                  onDelete={() => loadAssessments(employerEmail)}
                 />
               ))}
             </div>
@@ -157,65 +158,46 @@ function AssessmentCard({ assessment, navigate, onDelete }) {
     setCandidateCount(count || 0)
   }
 
-const handleDelete = async () => {
-  setIsDeleting(true)
+  const handleDelete = async () => {
+    setIsDeleting(true)
 
-  try {
-    // Delete all responses for this assessment's candidates
-    const { data: candidates } = await supabase
-      .from('candidates')
-      .select('id')
-      .eq('assessment_id', assessment.id)
+    try {
+      const { data: candidates } = await supabase
+        .from('candidates')
+        .select('id')
+        .eq('assessment_id', assessment.id)
 
-    if (candidates && candidates.length > 0) {
-      const candidateIds = candidates.map(c => c.id)
-      
-      const { error: responsesError } = await supabase
-        .from('responses')
-        .delete()
-        .in('candidate_id', candidateIds)
-
-      if (responsesError) {
-        console.error('Error deleting responses:', responsesError)
+      if (candidates && candidates.length > 0) {
+        const candidateIds = candidates.map(c => c.id)
+        
+        await supabase
+          .from('responses')
+          .delete()
+          .in('candidate_id', candidateIds)
       }
+
+      await supabase
+        .from('candidates')
+        .delete()
+        .eq('assessment_id', assessment.id)
+
+      await supabase
+        .from('assessments')
+        .delete()
+        .eq('id', assessment.id)
+
+      setShowDeleteConfirm(false)
+      onDelete()
+
+    } catch (error) {
+      console.error('Error deleting assessment:', error)
+      alert('Error deleting assessment. Please try again.')
+      setIsDeleting(false)
     }
-
-    // Delete all candidates
-    const { error: candidatesError } = await supabase
-      .from('candidates')
-      .delete()
-      .eq('assessment_id', assessment.id)
-
-    if (candidatesError) {
-      console.error('Error deleting candidates:', candidatesError)
-    }
-
-    // Delete the assessment
-    const { error: assessmentError } = await supabase
-      .from('assessments')
-      .delete()
-      .eq('id', assessment.id)
-
-    if (assessmentError) {
-      throw new Error(assessmentError.message)
-    }
-
-    setShowDeleteConfirm(false)
-    setIsDeleting(false)
-    
-    // Refresh the list
-    onDelete()
-
-  } catch (error) {
-    console.error('Error deleting assessment:', error)
-    alert(`Error: ${error.message}`)
-    setIsDeleting(false)
   }
-}
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition relative">
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md mx-4">
@@ -250,7 +232,6 @@ const handleDelete = async () => {
         </div>
       )}
 
-      {/* Assessment Card Content */}
       <div className="flex justify-between items-start mb-2">
         <div className="flex-1">
           <h3 className="text-xl font-semibold text-gray-800">
@@ -295,5 +276,3 @@ const handleDelete = async () => {
     </div>
   )
 }
-
-export default EmployerDashboard
