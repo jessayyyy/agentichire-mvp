@@ -198,20 +198,10 @@ Return ONLY a JSON array with 6 questions (no markdown, no backticks):
       return
     }
 
-    // Generate unique link
-    const linkId = crypto.randomUUID()
-    const link = `${window.location.origin}/assessment/${linkId}`
+// Generate unique link - use assessment ID directly
+const link = `${window.location.origin}/assessment/${assessment.id}`
 
-    // Create initial candidate entry
-    const { error: candidateError } = await supabase
-      .from('candidates')
-      .insert([{
-        assessment_id: assessment.id,
-        link_id: linkId,
-        name: 'Pending',
-        email: 'pending@example.com',
-        status: 'pending'
-      }])
+// Don't create any candidate entries yet - they'll be created when someone clicks the link
 
     if (candidateError) {
       alert('Error generating link')
