@@ -796,3 +796,5 @@ const generateAIFeedback = (analysis, wordCount, score) => {
 
   return null
 }
+
+export default TakeAssessment
