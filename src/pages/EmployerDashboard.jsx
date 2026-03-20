@@ -138,8 +138,10 @@ export default function EmployerDashboard() {
   )
 }
 
-function AssessmentCard({ assessment, navigate }) {
+function AssessmentCard({ assessment, navigate, onDelete }) {
   const [candidateCount, setCandidateCount] = useState(0)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     loadCandidateCount()
@@ -150,14 +152,92 @@ function AssessmentCard({ assessment, navigate }) {
       .from('candidates')
       .select('*', { count: 'exact', head: true })
       .eq('assessment_id', assessment.id)
+      .eq('status', 'completed')
     
     setCandidateCount(count || 0)
   }
 
+  const handleDelete = async () => {
+    setIsDeleting(true)
+
+    try {
+      // Delete all responses for this assessment's candidates
+      const { data: candidates } = await supabase
+        .from('candidates')
+        .select('id')
+        .eq('assessment_id', assessment.id)
+
+      if (candidates && candidates.length > 0) {
+        const candidateIds = candidates.map(c => c.id)
+        
+        await supabase
+          .from('responses')
+          .delete()
+          .in('candidate_id', candidateIds)
+      }
+
+      // Delete all candidates
+      await supabase
+        .from('candidates')
+        .delete()
+        .eq('assessment_id', assessment.id)
+
+      // Delete the assessment
+      await supabase
+        .from('assessments')
+        .delete()
+        .eq('id', assessment.id)
+
+      setShowDeleteConfirm(false)
+      onDelete() // Refresh the list
+
+    } catch (error) {
+      console.error('Error deleting assessment:', error)
+      alert('Error deleting assessment. Please try again.')
+      setIsDeleting(false)
+    }
+  }
+
   return (
-    <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+    <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition relative">
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Delete Assessment?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "<strong>{assessment.role_title}</strong>"?
+              <br/><br/>
+              This will permanently delete:
+              <br/>• The assessment
+              <br/>• All {candidateCount} candidate responses
+              <br/>• All associated data
+              <br/><br/>
+              <strong className="text-red-600">This action cannot be undone.</strong>
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition disabled:bg-gray-400"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assessment Card Content */}
       <div className="flex justify-between items-start mb-2">
-        <div>
+        <div className="flex-1">
           <h3 className="text-xl font-semibold text-gray-800">
             {assessment.role_title}
           </h3>
@@ -165,9 +245,18 @@ function AssessmentCard({ assessment, navigate }) {
             Created {new Date(assessment.created_at).toLocaleDateString()}
           </p>
         </div>
-        <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-          {candidateCount} candidate{candidateCount !== 1 ? 's' : ''}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+            {candidateCount} candidate{candidateCount !== 1 ? 's' : ''}
+          </span>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded transition"
+            title="Delete assessment"
+          >
+            🗑️
+          </button>
+        </div>
       </div>
       
       <div className="flex gap-2 mt-4">
