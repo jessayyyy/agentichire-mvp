@@ -445,8 +445,7 @@ const generateAdaptiveQuestions = async () => {
 
         console.log(`✅ Scored response ${i + 1}: ${score.toFixed(1)}/10`)
 
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
+await new Promise(resolve => setTimeout(resolve, 1000))
       } catch (error) {
         console.error(`Error scoring response ${i + 1}:`, error)
         
@@ -460,7 +459,6 @@ const generateAdaptiveQuestions = async () => {
           .eq('id', response.id)
       }
     }
-
     console.log('Finished scoring all responses')
   }
 
@@ -491,17 +489,23 @@ const generateAdaptiveQuestions = async () => {
           })
         }
       )
-
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`)
       }
-
       const data = await response.json()
       
       const scores = {}
       data.labels.forEach((label, index) => {
         scores[label] = data.scores[index]
       })
+
+      return scores  // ✅ return the result
+
+    } catch (error) {
+      console.error('Error analyzing answer with AI:', error)  // ✅ closes try
+      throw error
+    }
+  }  // ✅ closes analyzeAnswerWithAI function
 
       return {
         isSpecific: scores["specific and detailed answer with examples"] > 0.5,
