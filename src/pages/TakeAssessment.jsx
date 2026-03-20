@@ -338,11 +338,9 @@ const handleNextQuestion = async () => {
     }])
 
   if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
-    await generateAdaptiveQuestions()
+    const newTotal = await generateAdaptiveQuestions() // ✅ capture returned value
+    total = newTotal                                   // ✅ use it directly
   }
-
-  // ✅ FIX: fall back to allQuestions.length if totalQuestions is still null
-  const total = totalQuestions || allQuestions.length
   const isLastQuestion = currentQuestion >= total - 1
 
   if (isLastQuestion) {
