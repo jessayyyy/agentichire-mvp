@@ -158,13 +158,13 @@ export default function TakeAssessment() {
       'for example', 'for instance', 'one time', 'last week', 'last month',
       'i remember', 'there was', 'i once', 'in my previous', 'when i worked'
     ]
-    const hasExample = exampleIndicators.some(indicator => 
+    const hasExample = exampleIndicators.some(indicator =>
       answerText.toLowerCase().includes(indicator)
     )
     if (!hasExample) qualityScore -= 1.5
 
     const vagueWords = ['maybe', 'probably', 'i think', 'i guess', 'kind of', 'sort of']
-    const vagueCount = vagueWords.filter(word => 
+    const vagueCount = vagueWords.filter(word =>
       answerText.toLowerCase().includes(word)
     ).length
     if (vagueCount > 2) qualityScore -= 1
@@ -185,141 +185,132 @@ export default function TakeAssessment() {
     return Math.max(1, Math.min(10, qualityScore))
   }
 
-const generateAdaptiveQuestions = async () => {
-  setIsGeneratingAdaptive(true)
+  const generateAdaptiveQuestions = async () => {
+    setIsGeneratingAdaptive(true)
 
-  try {
-    const { data: responses } = await supabase
-      .from('responses')
-      .select('*')
-      .eq('candidate_id', candidateId)
-      .order('question_number', { ascending: true })
-      .limit(6)
+    try {
+      const { data: responses } = await supabase
+        .from('responses')
+        .select('*')
+        .eq('candidate_id', candidateId)
+        .order('question_number', { ascending: true })
+        .limit(6)
 
-    if (!responses || responses.length < 6) {
-      throw new Error('Not enough responses')
-    }
+      if (!responses || responses.length < 6) {
+        throw new Error('Not enough responses')
+      }
 
-    const qualityScores = responses.map(r => ({
-      question: r.question_text,
-      answer: r.answer_text,
-      score: analyzeAnswerQuality(r.answer_text)
-    }))
+      const qualityScores = responses.map(r => ({
+        question: r.question_text,
+        answer: r.answer_text,
+        score: analyzeAnswerQuality(r.answer_text)
+      }))
 
-    const avgQuality = qualityScores.reduce((sum, q) => sum + q.score, 0) / 6
-    const weakAnswers = qualityScores.filter(q => q.score < 5)
-    const vagueAnswers = qualityScores.filter(q => q.answer.split(' ').length < 30)
+      const avgQuality = qualityScores.reduce((sum, q) => sum + q.score, 0) / 6
+      const weakAnswers = qualityScores.filter(q => q.score < 5)
+      const vagueAnswers = qualityScores.filter(q => q.answer.split(' ').length < 30)
 
-    let adaptiveCount
-    if (avgQuality >= 7 && weakAnswers.length <= 1) {
-      adaptiveCount = 2
-    } else if (avgQuality >= 5.5 && weakAnswers.length <= 3) {
-      adaptiveCount = 3
-    } else if (weakAnswers.length >= 4 || vagueAnswers.length >= 4) {
-      adaptiveCount = 5
-    } else {
-      adaptiveCount = 4
-    }
-
-    console.log(`Generating ${adaptiveCount} adaptive questions based on performance`)
-
-    const blueprint = assessment.blueprint || {}
-    const adaptiveQuestions = []
-
-    // Detect themes from answers
-    const mentionedStress = responses.some(r => 
-      /stress|pressure|busy|rush|overwhelm/i.test(r.answer_text)
-    )
-    const mentionedTeamwork = responses.some(r => 
-      /team|colleague|coworker|together|collaborate/i.test(r.answer_text)
-    )
-    const mentionedCustomers = responses.some(r => 
-      /customer|guest|client|patron/i.test(r.answer_text)
-    )
-    const mentionedMistakes = responses.some(r => 
-      /mistake|error|wrong|fail|problem/i.test(r.answer_text)
-    )
-
-    // Generate diverse adaptive questions
-    for (let i = 0; i < adaptiveCount; i++) {
-      const targetAnswer = weakAnswers[i] || qualityScores[i]
-      let question
-
-      // Rotate question types for variety
-      const questionType = i % 5
-
-      if (questionType === 0 && targetAnswer.answer.split(' ').length < 30) {
-        // Follow-up for brief answers
-        question = {
-          question_text: `Earlier you mentioned "${targetAnswer.answer.substring(0, 50)}..." - walk me through that situation in detail. What EXACTLY happened, what did YOU specifically do, and what was the outcome?`,
-          ideal_answer_hints: 'Detailed step-by-step account, specific actions, concrete results'
-        }
-      } else if (questionType === 1 && mentionedStress) {
-        // Related new question based on stress theme
-        question = {
-          question_text: `You mentioned dealing with stressful situations. Tell me about a time when you had to maintain quality standards despite being under extreme time pressure. What was at stake?`,
-          ideal_answer_hints: 'Specific high-pressure scenario, quality maintained, stakes described'
-        }
-      } else if (questionType === 2 && mentionedTeamwork) {
-        // Related new question based on teamwork theme
-        question = {
-          question_text: `Describe a situation where you had to get results from a team member who wasn't cooperating or wasn't pulling their weight. How did you handle it?`,
-          ideal_answer_hints: 'Difficult team situation, tactful approach, resolution achieved'
-        }
-      } else if (questionType === 3 && mentionedCustomers) {
-        // Related new question based on customer theme
-        question = {
-          question_text: `Tell me about a customer interaction that taught you something important about ${blueprint.industry || 'this industry'}. What was the lesson and how did you apply it afterward?`,
-          ideal_answer_hints: 'Meaningful customer interaction, clear lesson learned, applied knowledge'
-        }
-      } else if (questionType === 4 || mentionedMistakes) {
-        // Failure/learning question
-        question = {
-          question_text: `Describe a time you made a significant mistake at work that affected others. How did you handle it, and what changed in your approach afterward?`,
-          ideal_answer_hints: 'Admits real mistake, shows accountability, demonstrates growth'
-        }
+      let adaptiveCount
+      if (avgQuality >= 7 && weakAnswers.length <= 1) {
+        adaptiveCount = 2
+      } else if (avgQuality >= 5.5 && weakAnswers.length <= 3) {
+        adaptiveCount = 3
+      } else if (weakAnswers.length >= 4 || vagueAnswers.length >= 4) {
+        adaptiveCount = 5
       } else {
-        // Judgment/ethics question (completely new angle)
-        const challenges = blueprint.challenges || []
-        const challenge = challenges[i % challenges.length] || 'competing priorities'
-        question = {
-          question_text: `You're facing ${challenge} and your manager isn't available. You need to make a call that could impact the business. Walk me through how you'd make that decision.`,
-          ideal_answer_hints: 'Decision-making process, considers stakeholders, shows judgment'
+        adaptiveCount = 4
+      }
+
+      console.log(`Generating ${adaptiveCount} adaptive questions based on performance`)
+
+      const blueprint = assessment.blueprint || {}
+      const adaptiveQuestions = []
+
+      const mentionedStress = responses.some(r =>
+        /stress|pressure|busy|rush|overwhelm/i.test(r.answer_text)
+      )
+      const mentionedTeamwork = responses.some(r =>
+        /team|colleague|coworker|together|collaborate/i.test(r.answer_text)
+      )
+      const mentionedCustomers = responses.some(r =>
+        /customer|guest|client|patron/i.test(r.answer_text)
+      )
+      const mentionedMistakes = responses.some(r =>
+        /mistake|error|wrong|fail|problem/i.test(r.answer_text)
+      )
+
+      for (let i = 0; i < adaptiveCount; i++) {
+        const targetAnswer = weakAnswers[i] || qualityScores[i]
+        let question
+
+        const questionType = i % 5
+
+        if (questionType === 0 && targetAnswer.answer.split(' ').length < 30) {
+          question = {
+            question_text: `Earlier you mentioned "${targetAnswer.answer.substring(0, 50)}..." - walk me through that situation in detail. What EXACTLY happened, what did YOU specifically do, and what was the outcome?`,
+            ideal_answer_hints: 'Detailed step-by-step account, specific actions, concrete results'
+          }
+        } else if (questionType === 1 && mentionedStress) {
+          question = {
+            question_text: `You mentioned dealing with stressful situations. Tell me about a time when you had to maintain quality standards despite being under extreme time pressure. What was at stake?`,
+            ideal_answer_hints: 'Specific high-pressure scenario, quality maintained, stakes described'
+          }
+        } else if (questionType === 2 && mentionedTeamwork) {
+          question = {
+            question_text: `Describe a situation where you had to get results from a team member who wasn't cooperating or wasn't pulling their weight. How did you handle it?`,
+            ideal_answer_hints: 'Difficult team situation, tactful approach, resolution achieved'
+          }
+        } else if (questionType === 3 && mentionedCustomers) {
+          question = {
+            question_text: `Tell me about a customer interaction that taught you something important about ${blueprint.industry || 'this industry'}. What was the lesson and how did you apply it afterward?`,
+            ideal_answer_hints: 'Meaningful customer interaction, clear lesson learned, applied knowledge'
+          }
+        } else if (questionType === 4 || mentionedMistakes) {
+          question = {
+            question_text: `Describe a time you made a significant mistake at work that affected others. How did you handle it, and what changed in your approach afterward?`,
+            ideal_answer_hints: 'Admits real mistake, shows accountability, demonstrates growth'
+          }
+        } else {
+          const challenges = blueprint.challenges || []
+          const challenge = challenges[i % challenges.length] || 'competing priorities'
+          question = {
+            question_text: `You're facing ${challenge} and your manager isn't available. You need to make a call that could impact the business. Walk me through how you'd make that decision.`,
+            ideal_answer_hints: 'Decision-making process, considers stakeholders, shows judgment'
+          }
         }
+
+        adaptiveQuestions.push(question)
       }
 
-      adaptiveQuestions.push(question)
+      setAllQuestions([...allQuestions, ...adaptiveQuestions])
+      setTotalQuestions(6 + adaptiveCount)
+      setAdaptiveQuestionsGenerated(true)
+      setIsGeneratingAdaptive(false)
+
+    } catch (error) {
+      console.error('Error generating adaptive questions:', error)
+
+      const fallback = [
+        {
+          question_text: "Describe the most challenging professional situation you've ever faced. What made it so difficult, and how did you navigate through it?",
+          ideal_answer_hints: "Significant challenge, complexity described, resolution shown"
+        },
+        {
+          question_text: "Tell me about a time you had to adapt your communication style to work effectively with someone very different from you.",
+          ideal_answer_hints: "Shows adaptability, self-awareness, successful collaboration"
+        },
+        {
+          question_text: "What's a professional goal you set for yourself that you didn't achieve? What happened, and what did you learn?",
+          ideal_answer_hints: "Shows vulnerability, reflection, growth mindset"
+        }
+      ]
+
+      setAllQuestions([...allQuestions, ...fallback])
+      setTotalQuestions(6 + 3)
+      setAdaptiveQuestionsGenerated(true)
+      setIsGeneratingAdaptive(false)
     }
-
-    setAllQuestions([...allQuestions, ...adaptiveQuestions])
-    setTotalQuestions(6 + adaptiveCount)
-    setAdaptiveQuestionsGenerated(true)
-    setIsGeneratingAdaptive(false)
-
-  } catch (error) {
-    console.error('Error generating adaptive questions:', error)
-    
-    const fallback = [
-      {
-        question_text: "Describe the most challenging professional situation you've ever faced. What made it so difficult, and how did you navigate through it?",
-        ideal_answer_hints: "Significant challenge, complexity described, resolution shown"
-      },
-      {
-        question_text: "Tell me about a time you had to adapt your communication style to work effectively with someone very different from you.",
-        ideal_answer_hints: "Shows adaptability, self-awareness, successful collaboration"
-      },
-      {
-        question_text: "What's a professional goal you set for yourself that you didn't achieve? What happened, and what did you learn?",
-        ideal_answer_hints: "Shows vulnerability, reflection, growth mindset"
-      }
-    ]
-    
-    setAllQuestions([...allQuestions, ...fallback])
-    setTotalQuestions(6 + 3)
-    setAdaptiveQuestionsGenerated(true)
-    setIsGeneratingAdaptive(false)
   }
-}
 
   const handleNextQuestion = async () => {
     if (!answer.trim()) {
@@ -399,7 +390,7 @@ const generateAdaptiveQuestions = async () => {
 
   const scoreAllAnswers = async () => {
     console.log('Starting AI scoring with Hugging Face...')
-    
+
     const { data: responses } = await supabase
       .from('responses')
       .select('*')
@@ -418,21 +409,21 @@ const generateAdaptiveQuestions = async () => {
 
       try {
         const analysis = await analyzeAnswerWithAI(response.answer_text)
-        
+
         let score = 5
-        
+
         if (analysis.isSpecific) score += 2
         if (analysis.isProfessional) score += 1.5
         if (analysis.hasExperience) score += 1.5
         if (analysis.isVague) score -= 2
         if (analysis.isUnprofessional) score -= 1.5
-        
+
         const wordCount = response.answer_text.split(' ').length
         if (wordCount > 100) score += 0.5
         if (wordCount < 30) score -= 1
-        
+
         score = Math.max(1, Math.min(10, score))
-        
+
         const feedback = generateAIFeedback(analysis, wordCount, score)
 
         await supabase
@@ -445,10 +436,10 @@ const generateAdaptiveQuestions = async () => {
 
         console.log(`✅ Scored response ${i + 1}: ${score.toFixed(1)}/10`)
 
-await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 1000))
       } catch (error) {
         console.error(`Error scoring response ${i + 1}:`, error)
-        
+
         const fallbackScore = analyzeAnswerQuality(response.answer_text)
         await supabase
           .from('responses')
@@ -462,6 +453,7 @@ await new Promise(resolve => setTimeout(resolve, 1000))
     console.log('Finished scoring all responses')
   }
 
+  // ✅ FIXED: analyzeAnswerWithAI — was closed too early, return statement was outside the function
   const analyzeAnswerWithAI = async (answerText) => {
     try {
       const response = await fetch(
@@ -489,24 +481,19 @@ await new Promise(resolve => setTimeout(resolve, 1000))
           })
         }
       )
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`)
       }
+
       const data = await response.json()
-      
+
       const scores = {}
       data.labels.forEach((label, index) => {
         scores[label] = data.scores[index]
       })
 
-      return scores  // ✅ return the result
-
-    } catch (error) {
-      console.error('Error analyzing answer with AI:', error)  // ✅ closes try
-      throw error
-    }
-  }  // ✅ closes analyzeAnswerWithAI function
-
+      // ✅ return is now INSIDE the try block, INSIDE the function
       return {
         isSpecific: scores["specific and detailed answer with examples"] > 0.5,
         isVague: scores["vague and generic response"] > 0.5,
@@ -520,6 +507,7 @@ await new Promise(resolve => setTimeout(resolve, 1000))
 
     } catch (error) {
       console.error('Hugging Face API error:', error)
+      // ✅ fallback return is now INSIDE the catch block, INSIDE the function
       return {
         isSpecific: /example|instance|time when|specifically/i.test(answerText),
         isVague: answerText.split(' ').length < 50,
@@ -531,7 +519,7 @@ await new Promise(resolve => setTimeout(resolve, 1000))
         topScore: 0
       }
     }
-  }
+  } // ✅ closes analyzeAnswerWithAI
 
   const generateAIFeedback = (analysis, wordCount, score) => {
     let feedback = []
@@ -698,7 +686,7 @@ await new Promise(resolve => setTimeout(resolve, 1000))
               <div>
                 <p className="text-sm text-gray-600">Assessment in Progress</p>
                 <div className="w-64 h-2 bg-gray-200 rounded-full mt-2">
-                  <div 
+                  <div
                     className="h-full bg-blue-600 rounded-full transition-all"
                     style={{ width: `${Math.min(90, (currentQuestion + 1) * 12)}%` }}
                   />
@@ -735,72 +723,69 @@ await new Promise(resolve => setTimeout(resolve, 1000))
               className="w-full h-64 px-4 py-3 border-2 border-gray-300 rounded-lg text-lg resize-none focus:border-blue-500 focus:outline-none"
             />
 
-          <div className="flex justify-between items-center mt-4">
-            {/* Previous Button */}
-            {currentQuestion > 0 && currentQuestion < 6 && (
-              <button
-                onClick={async () => {
-                  // Save current answer if there is one
-                  if (answer.trim()) {
-                    const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
-                    await supabase
+            <div className="flex justify-between items-center mt-4">
+              {currentQuestion > 0 && currentQuestion < 6 && (
+                <button
+                  onClick={async () => {
+                    if (answer.trim()) {
+                      const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
+                      await supabase
+                        .from('responses')
+                        .upsert({
+                          candidate_id: candidateId,
+                          question_number: currentQuestion + 1,
+                          question_text: allQuestions[currentQuestion].question_text,
+                          answer_text: answer,
+                          typing_pauses: typingStats.pauses,
+                          deletion_count: typingStats.deletions,
+                          typing_time_seconds: typingTime,
+                          copy_paste_attempts: copyPasteAttempts
+                        }, {
+                          onConflict: 'candidate_id,question_number'
+                        })
+                    }
+
+                    const { data: prevResponse } = await supabase
                       .from('responses')
-                      .upsert({
-                        candidate_id: candidateId,
-                        question_number: currentQuestion + 1,
-                        question_text: allQuestions[currentQuestion].question_text,
-                        answer_text: answer,
-                        typing_pauses: typingStats.pauses,
-                        deletion_count: typingStats.deletions,
-                        typing_time_seconds: typingTime,
-                        copy_paste_attempts: copyPasteAttempts
-                      }, {
-                        onConflict: 'candidate_id,question_number'
-                      })
-                  }
+                      .select('*')
+                      .eq('candidate_id', candidateId)
+                      .eq('question_number', currentQuestion)
+                      .single()
 
-                  // Load previous answer
-                  const { data: prevResponse } = await supabase
-                    .from('responses')
-                    .select('*')
-                    .eq('candidate_id', candidateId)
-                    .eq('question_number', currentQuestion)
-                    .single()
+                    setCurrentQuestion(currentQuestion - 1)
+                    setAnswer(prevResponse?.answer_text || '')
+                    setCopyPasteAttempts(0)
+                    setTypingStats({
+                      pauses: 0,
+                      deletions: 0,
+                      startTime: Date.now(),
+                      lastKeystroke: null
+                    })
+                  }}
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
+                >
+                  ← Previous
+                </button>
+              )}
 
-                  setCurrentQuestion(currentQuestion - 1)
-                  setAnswer(prevResponse?.answer_text || '')
-                  setCopyPasteAttempts(0)
-                  setTypingStats({
-                    pauses: 0,
-                    deletions: 0,
-                    startTime: Date.now(),
-                    lastKeystroke: null
-                  })
-                }}
-                className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
+              <button
+                onClick={handleNextQuestion}
+                disabled={!answer.trim()}
+                className={`px-8 py-3 rounded-lg font-semibold transition ml-auto ${
+                  !answer.trim()
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                ← Previous
+                Continue →
               </button>
-            )}
-
-            {/* Next/Continue Button */}
-            <button
-              onClick={handleNextQuestion}
-              disabled={!answer.trim()}
-              className={`px-8 py-3 rounded-lg font-semibold transition ml-auto ${
-                !answer.trim()
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              Continue →
-            </button>
-          </div>
+            </div>
+          </div>{/* ✅ closes inner bg-white div (was missing) */}
         </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
+
   if (stage === 'completed') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
