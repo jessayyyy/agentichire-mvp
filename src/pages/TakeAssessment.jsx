@@ -137,10 +137,13 @@ const handleStart = async () => {
     }))
   }
 
-  const handlePaste = (e) => {
-    e.preventDefault()
-    alert('⚠️ Copy-paste is disabled for fair assessment')
-  }
+const [copyPasteAttempts, setCopyPasteAttempts] = useState(0)
+
+const handlePaste = (e) => {
+  e.preventDefault() // Still block it
+  setCopyPasteAttempts(prev => prev + 1) // Track silently
+  // No alert - candidate doesn't know
+}
 
   const analyzeAnswerQuality = (answerText) => {
     let qualityScore = 5 // Base score
@@ -311,17 +314,18 @@ const handleStart = async () => {
     const typingTime = Math.floor((Date.now() - typingStats.startTime) / 1000)
 
     // Save response
-    await supabase
-      .from('responses')
-      .insert([{
-        candidate_id: candidateId,
-        question_number: currentQuestion + 1,
-        question_text: allQuestions[currentQuestion].question_text,
-        answer_text: answer,
-        typing_pauses: typingStats.pauses,
-        deletion_count: typingStats.deletions,
-        typing_time_seconds: typingTime
-      }])
+await supabase
+  .from('responses')
+  .insert([{
+    candidate_id: candidateId,
+    question_number: currentQuestion + 1,
+    question_text: allQuestions[currentQuestion].question_text,
+    answer_text: answer,
+    typing_pauses: typingStats.pauses,
+    deletion_count: typingStats.deletions,
+    typing_time_seconds: typingTime,
+    copy_paste_attempts: copyPasteAttempts // ADD THIS
+  }])
 
     // After question 6, generate adaptive questions
     if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
@@ -558,13 +562,19 @@ const handleStart = async () => {
               {allQuestions[currentQuestion]?.question_text || 'Loading question...'}
             </h2>
 
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onCopy={(e) => e.preventDefault()}
-              onCut={(e) => e.preventDefault()}
+<textarea
+  value={answer}
+  onChange={(e) => setAnswer(e.target.value)}
+  onKeyDown={handleKeyDown}
+  onPaste={handlePaste}
+  onCopy={(e) => {
+    e.preventDefault()
+    setCopyPasteAttempts(prev => prev + 1)
+  }}
+  onCut={(e) => {
+    e.preventDefault()
+    setCopyPasteAttempts(prev => prev + 1)
+  }}
               placeholder="Type your answer here..."
               className="w-full h-64 px-4 py-3 border-2 border-gray-300 rounded-lg text-lg resize-none focus:border-blue-500 focus:outline-none"
             />
