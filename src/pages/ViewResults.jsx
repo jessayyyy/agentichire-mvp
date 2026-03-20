@@ -268,20 +268,21 @@ export default function ViewResults() {
                       </div>
                     )}
 
-                    <div className="flex gap-4 text-xs text-gray-500">
-                      <div>
-                        ⏱️ Time: {Math.floor(response.typing_time_seconds / 60)}m {response.typing_time_seconds % 60}s
-                      </div>
-                      <div>
-                        ⏸️ Pauses: {response.typing_pauses}
-                      </div>
-                      <div>
-                        ⌫ Edits: {response.deletion_count}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+<div className="flex gap-4 text-xs text-gray-500">
+  <div>
+    ⏱️ Time: {Math.floor(response.typing_time_seconds / 60)}m {response.typing_time_seconds % 60}s
+  </div>
+  <div>
+    ⏸️ Pauses: {response.typing_pauses}
+  </div>
+  <div>
+    ⌫ Edits: {response.deletion_count}
+  </div>
+  <div className={response.copy_paste_attempts > 0 ? 'text-red-600 font-semibold' : ''}>
+    📋 Copy attempts: {response.copy_paste_attempts || 0}
+    {response.copy_paste_attempts > 3 && ' ⚠️'}
+  </div>
+</div>
 
               {/* Summary */}
               <div className="mt-6 pt-6 border-t border-gray-200">
