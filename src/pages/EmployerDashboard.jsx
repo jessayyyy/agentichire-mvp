@@ -157,46 +157,61 @@ function AssessmentCard({ assessment, navigate, onDelete }) {
     setCandidateCount(count || 0)
   }
 
-  const handleDelete = async () => {
-    setIsDeleting(true)
+const handleDelete = async () => {
+  setIsDeleting(true)
 
-    try {
-      // Delete all responses for this assessment's candidates
-      const { data: candidates } = await supabase
-        .from('candidates')
-        .select('id')
-        .eq('assessment_id', assessment.id)
+  try {
+    // Delete all responses for this assessment's candidates
+    const { data: candidates } = await supabase
+      .from('candidates')
+      .select('id')
+      .eq('assessment_id', assessment.id)
 
-      if (candidates && candidates.length > 0) {
-        const candidateIds = candidates.map(c => c.id)
-        
-        await supabase
-          .from('responses')
-          .delete()
-          .in('candidate_id', candidateIds)
+    if (candidates && candidates.length > 0) {
+      const candidateIds = candidates.map(c => c.id)
+      
+      const { error: responsesError } = await supabase
+        .from('responses')
+        .delete()
+        .in('candidate_id', candidateIds)
+
+      if (responsesError) {
+        console.error('Error deleting responses:', responsesError)
       }
-
-      // Delete all candidates
-      await supabase
-        .from('candidates')
-        .delete()
-        .eq('assessment_id', assessment.id)
-
-      // Delete the assessment
-      await supabase
-        .from('assessments')
-        .delete()
-        .eq('id', assessment.id)
-
-      setShowDeleteConfirm(false)
-      onDelete() // Refresh the list
-
-    } catch (error) {
-      console.error('Error deleting assessment:', error)
-      alert('Error deleting assessment. Please try again.')
-      setIsDeleting(false)
     }
+
+    // Delete all candidates
+    const { error: candidatesError } = await supabase
+      .from('candidates')
+      .delete()
+      .eq('assessment_id', assessment.id)
+
+    if (candidatesError) {
+      console.error('Error deleting candidates:', candidatesError)
+    }
+
+    // Delete the assessment
+    const { error: assessmentError } = await supabase
+      .from('assessments')
+      .delete()
+      .eq('id', assessment.id)
+
+    if (assessmentError) {
+      throw new Error(assessmentError.message)
+    }
+
+    setShowDeleteConfirm(false)
+    setIsDeleting(false)
+    
+    // Refresh the list
+    onDelete()
+
+  } catch (error) {
+    console.error('Error deleting assessment:', error)
+    alert(`Error: ${error.message}`)
+    setIsDeleting(false)
   }
+}
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition relative">
