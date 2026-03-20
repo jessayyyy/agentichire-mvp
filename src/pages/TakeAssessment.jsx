@@ -42,48 +42,77 @@ export default function TakeAssessment() {
     }
   }, [stage, timeRemaining])
 
-  const loadAssessment = async () => {
-    const { data: candidate, error } = await supabase
+const loadAssessment = async () => {
+  // linkId is now the assessment ID
+  const assessmentId = linkId
+
+  // Load the assessment
+  const { data: assessment, error: assessmentError } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('id', assessmentId)
+    .single()
+
+  if (assessmentError || !assessment) {
+    setStage('error')
+    return
+  }
+
+  // Check if this browser has already completed this assessment
+  const existingCandidateId = localStorage.getItem(`candidate_${assessmentId}`)
+  
+  if (existingCandidateId) {
+    // Check if they already completed
+    const { data: existingCandidate } = await supabase
       .from('candidates')
-      .select('*, assessments(*)')
-      .eq('link_id', linkId)
+      .select('*')
+      .eq('id', existingCandidateId)
       .single()
 
-    if (error || !candidate) {
-      setStage('error')
-      return
-    }
-
-    if (candidate.status === 'completed') {
+    if (existingCandidate && existingCandidate.status === 'completed') {
       setStage('already_completed')
       return
     }
-
-    setAssessment(candidate.assessments)
-    setCandidateId(candidate.id)
-    setAllQuestions(candidate.assessments.selected_questions)
-    setStage('info')
   }
 
-  const handleStart = async () => {
-    if (!candidateName.trim() || !candidateEmail.trim()) {
-      alert('Please enter your name and email')
-      return
-    }
+  setAssessment(assessment)
+  setAllQuestions(assessment.selected_questions)
+  setStage('info')
+}
 
-    await supabase
-      .from('candidates')
-      .update({
-        name: candidateName,
-        email: candidateEmail,
-        status: 'in_progress',
-        started_at: new Date().toISOString()
-      })
-      .eq('id', candidateId)
-
-    setStage('assessment')
-    setTypingStats({ ...typingStats, startTime: Date.now() })
+const handleStart = async () => {
+  if (!candidateName.trim() || !candidateEmail.trim()) {
+    alert('Please enter your name and email')
+    return
   }
+
+  // Create a NEW candidate entry for this person
+  const { data: newCandidate, error: candidateError } = await supabase
+    .from('candidates')
+    .insert([{
+      assessment_id: linkId, // linkId is the assessment ID
+      name: candidateName,
+      email: candidateEmail,
+      link_id: crypto.randomUUID(), // Unique ID for this candidate
+      status: 'in_progress',
+      started_at: new Date().toISOString()
+    }])
+    .select()
+    .single()
+
+  if (candidateError || !newCandidate) {
+    alert('Error starting assessment. Please try again.')
+    return
+  }
+
+  setCandidateId(newCandidate.id)
+  
+  // Store in localStorage to prevent retakes
+  localStorage.setItem(`candidate_${linkId}`, newCandidate.id)
+
+  setStage('assessment')
+  setTypingStats({ ...typingStats, startTime: Date.now() })
+}
 
   const handleKeyDown = (e) => {
     const now = Date.now()
