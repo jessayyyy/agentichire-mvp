@@ -43,8 +43,9 @@ export default function TakeAssessment() {
   }, [stage, timeRemaining])
 
 const loadAssessment = async () => {
-  // linkId is now the assessment ID
   const assessmentId = linkId
+
+  console.log('Loading assessment:', assessmentId)
 
   // Load the assessment
   const { data: assessment, error: assessmentError } = await supabase
@@ -53,11 +54,21 @@ const loadAssessment = async () => {
     .eq('id', assessmentId)
     .single()
 
+  console.log('Assessment data:', assessment)
+  console.log('Assessment error:', assessmentError)
+
   if (assessmentError || !assessment) {
+    console.error('Failed to load assessment')
     setStage('error')
     return
   }
 
+  console.log('Selected questions:', assessment.selected_questions)
+
+  setAssessment(assessment)
+  setAllQuestions(assessment.selected_questions || [])
+  setStage('info')
+}
 const handleStart = async () => {
   if (!candidateName.trim() || !candidateEmail.trim()) {
     alert('Please enter your name and email')
