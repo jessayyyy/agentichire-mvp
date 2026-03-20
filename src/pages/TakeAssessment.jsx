@@ -366,19 +366,18 @@ const handleNextQuestion = async () => {
   }
 }
 
-  const handleSubmitAssessment = async () => {
-    await supabase
-      .from('candidates')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString()
-      })
-      .eq('id', candidateId)
+const handleSubmitAssessment = async () => {
+  await supabase
+    .from('candidates')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', candidateId)
 
-    await scoreAllAnswers()
-
-    setStage('completed')
-  }
+  scoreAllAnswers() // ✅ remove await — runs in background
+  setStage('completed') // ✅ shows completion screen immediately
+}
 
   const handleAutoSubmit = async () => {
     if (answer.trim().length > 0) {
