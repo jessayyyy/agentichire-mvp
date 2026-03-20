@@ -383,27 +383,50 @@ await supabase
     handleSubmitAssessment()
   }
 
-  const scoreAllAnswers = async () => {
-    const { data: responses } = await supabase
-      .from('responses')
-      .select('*')
-      .eq('candidate_id', candidateId)
+const scoreAllAnswers = async () => {
+  console.log('Starting AI scoring with Hugging Face...')
+  
+  const { data: responses } = await supabase
+    .from('responses')
+    .select('*')
+    .eq('candidate_id', candidateId)
 
-    if (!responses || responses.length === 0) return
+  if (!responses || responses.length === 0) {
+    console.log('No responses to score')
+    return
+  }
 
-    // Simple scoring for now (you can add Claude API later)
-    for (const response of responses) {
-      const score = analyzeAnswerQuality(response.answer_text)
+  console.log(`Scoring ${responses.length} responses...`)
+
+  for (let i = 0; i < responses.length; i++) {
+    const response = responses[i]
+    console.log(`Scoring response ${i + 1}/${responses.length}`)
+
+    try {
+      // Use Hugging Face to analyze the answer
+      const analysis = await analyzeAnswerWithAI(response.answer_text)
       
-      let feedback
-      if (score >= 7) {
-        feedback = "Strong answer with specific details and clear examples."
-      } else if (score >= 5) {
-        feedback = "Acceptable answer but could benefit from more specific examples and detail."
-      } else {
-        feedback = "Answer lacks specificity and depth. Needs concrete examples from real experience."
-      }
+      // Calculate score based on AI analysis
+      let score = 5 // Base score
+      
+      // Adjust based on sentiment and quality indicators
+      if (analysis.isSpecific) score += 2
+      if (analysis.isProfessional) score += 1.5
+      if (analysis.hasExperience) score += 1.5
+      if (analysis.isVague) score -= 2
+      if (analysis.isUnprofessional) score -= 1.5
+      
+      // Adjust based on answer length and structure
+      const wordCount = response.answer_text.split(' ').length
+      if (wordCount > 100) score += 0.5
+      if (wordCount < 30) score -= 1
+      
+      score = Math.max(1, Math.min(10, score))
+      
+      // Generate detailed feedback
+      const feedback = generateAIFeedback(analysis, wordCount, score)
 
+      // Save to database
       await supabase
         .from('responses')
         .update({
@@ -411,8 +434,152 @@ await supabase
           ai_feedback: feedback
         })
         .eq('id', response.id)
+
+      console.log(`✅ Scored response ${i + 1}: ${score.toFixed(1)}/10`)
+
+      // Small delay to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+    } catch (error) {
+      console.error(`Error scoring response ${i + 1}:`, error)
+      
+      // Fallback scoring
+      const fallbackScore = analyzeAnswerQuality(response.answer_text)
+      await supabase
+        .from('responses')
+        .update({
+          ai_score: fallbackScore,
+          ai_feedback: 'AI analysis unavailable. Score based on basic quality metrics.'
+        })
+        .eq('id', response.id)
     }
   }
+
+  console.log('Finished scoring all responses')
+}
+
+// Add this new function for Hugging Face AI analysis
+const analyzeAnswerWithAI = async (answerText) => {
+  try {
+    // Use Hugging Face zero-shot classification model
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/facebook/bart-large-mnli",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.HUGGINGFACE_API_KEY || ''}`
+        },
+        body: JSON.stringify({
+          inputs: answerText,
+          parameters: {
+            candidate_labels: [
+              "specific and detailed answer with examples",
+              "vague and generic response",
+              "professional and articulate",
+              "unprofessional or casual",
+              "demonstrates real experience",
+              "lacks concrete experience",
+              "confident and assertive",
+              "uncertain or evasive"
+            ],
+            multi_label: true
+          }
+        })
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    
+    // Parse the classification results
+    const scores = {}
+    data.labels.forEach((label, index) => {
+      scores[label] = data.scores[index]
+    })
+
+    // Determine characteristics based on scores
+    return {
+      isSpecific: scores["specific and detailed answer with examples"] > 0.5,
+      isVague: scores["vague and generic response"] > 0.5,
+      isProfessional: scores["professional and articulate"] > 0.5,
+      isUnprofessional: scores["unprofessional or casual"] > 0.5,
+      hasExperience: scores["demonstrates real experience"] > 0.5,
+      isConfident: scores["confident and assertive"] > 0.5,
+      topLabel: data.labels[0],
+      topScore: data.scores[0]
+    }
+
+  } catch (error) {
+    console.error('Hugging Face API error:', error)
+    // Fallback to basic analysis
+    return {
+      isSpecific: /example|instance|time when|specifically/i.test(answerText),
+      isVague: answerText.split(' ').length < 50,
+      isProfessional: !/slang|casual phrases/i.test(answerText),
+      isUnprofessional: false,
+      hasExperience: /previous|experience|worked|role/i.test(answerText),
+      isConfident: true,
+      topLabel: "analysis unavailable",
+      topScore: 0
+    }
+  }
+}
+
+// Add this helper function for detailed feedback
+const generateAIFeedback = (analysis, wordCount, score) => {
+  let feedback = []
+
+  // Positive aspects
+  if (analysis.isSpecific) {
+    feedback.push("Provides specific details and examples")
+  }
+  if (analysis.isProfessional) {
+    feedback.push("Professional and well-articulated communication")
+  }
+  if (analysis.hasExperience) {
+    feedback.push("Demonstrates relevant experience")
+  }
+  if (analysis.isConfident) {
+    feedback.push("Confident and assertive tone")
+  }
+
+  // Areas for improvement
+  if (analysis.isVague) {
+    feedback.push("Response lacks specific examples")
+  }
+  if (analysis.isUnprofessional) {
+    feedback.push("Could be more professional in tone")
+  }
+  if (wordCount < 50) {
+    feedback.push("Answer is too brief - needs more depth")
+  }
+  if (!analysis.hasExperience) {
+    feedback.push("Should demonstrate more real-world experience")
+  }
+
+  // Generate summary based on score
+  let summary
+  if (score >= 8) {
+    summary = "Excellent response showing strong capabilities."
+  } else if (score >= 6.5) {
+    summary = "Good answer with minor areas for improvement."
+  } else if (score >= 5) {
+    summary = "Acceptable but needs more depth and specificity."
+  } else {
+    summary = "Answer does not adequately demonstrate required competencies."
+  }
+
+  // Combine summary with specific feedback
+  if (feedback.length > 0) {
+    return `${summary} ${feedback.join('; ')}.`
+  } else {
+    return summary
+  }
+}
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
