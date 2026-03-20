@@ -185,137 +185,139 @@ export default function TakeAssessment() {
     return Math.max(1, Math.min(10, qualityScore))
   }
 
-  const generateAdaptiveQuestions = async () => {
-    setIsGeneratingAdaptive(true)
+const generateAdaptiveQuestions = async () => {
+  setIsGeneratingAdaptive(true)
 
-    try {
-      const { data: responses } = await supabase
-        .from('responses')
-        .select('*')
-        .eq('candidate_id', candidateId)
-        .order('question_number', { ascending: true })
-        .limit(6)
+  try {
+    const { data: responses } = await supabase
+      .from('responses')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .order('question_number', { ascending: true })
+      .limit(6)
 
-      if (!responses || responses.length < 6) {
-        throw new Error('Not enough responses')
-      }
-
-      const qualityScores = responses.map(r => ({
-        question: r.question_text,
-        answer: r.answer_text,
-        score: analyzeAnswerQuality(r.answer_text)
-      }))
-
-      const avgQuality = qualityScores.reduce((sum, q) => sum + q.score, 0) / 6
-      const weakAnswers = qualityScores.filter(q => q.score < 5)
-      const vagueAnswers = qualityScores.filter(q => q.answer.split(' ').length < 30)
-
-      let adaptiveCount
-      if (avgQuality >= 7 && weakAnswers.length <= 1) {
-        adaptiveCount = 2
-      } else if (avgQuality >= 5.5 && weakAnswers.length <= 3) {
-        adaptiveCount = 3
-      } else if (weakAnswers.length >= 4 || vagueAnswers.length >= 4) {
-        adaptiveCount = 5
-      } else {
-        adaptiveCount = 4
-      }
-
-      console.log(`Generating ${adaptiveCount} adaptive questions based on performance`)
-
-      const blueprint = assessment.blueprint || {}
-      const adaptiveQuestions = []
-
-      const mentionedStress = responses.some(r =>
-        /stress|pressure|busy|rush|overwhelm/i.test(r.answer_text)
-      )
-      const mentionedTeamwork = responses.some(r =>
-        /team|colleague|coworker|together|collaborate/i.test(r.answer_text)
-      )
-      const mentionedCustomers = responses.some(r =>
-        /customer|guest|client|patron/i.test(r.answer_text)
-      )
-      const mentionedMistakes = responses.some(r =>
-        /mistake|error|wrong|fail|problem/i.test(r.answer_text)
-      )
-
-      for (let i = 0; i < adaptiveCount; i++) {
-        const targetAnswer = weakAnswers[i] || qualityScores[i]
-        let question
-
-        const questionType = i % 5
-
-        if (questionType === 0 && targetAnswer.answer.split(' ').length < 30) {
-          question = {
-            question_text: `Earlier you mentioned "${targetAnswer.answer.substring(0, 50)}..." - walk me through that situation in detail. What EXACTLY happened, what did YOU specifically do, and what was the outcome?`,
-            ideal_answer_hints: 'Detailed step-by-step account, specific actions, concrete results'
-          }
-        } else if (questionType === 1 && mentionedStress) {
-          question = {
-            question_text: `You mentioned dealing with stressful situations. Tell me about a time when you had to maintain quality standards despite being under extreme time pressure. What was at stake?`,
-            ideal_answer_hints: 'Specific high-pressure scenario, quality maintained, stakes described'
-          }
-        } else if (questionType === 2 && mentionedTeamwork) {
-          question = {
-            question_text: `Describe a situation where you had to get results from a team member who wasn't cooperating or wasn't pulling their weight. How did you handle it?`,
-            ideal_answer_hints: 'Difficult team situation, tactful approach, resolution achieved'
-          }
-        } else if (questionType === 3 && mentionedCustomers) {
-          question = {
-            question_text: `Tell me about a customer interaction that taught you something important about ${blueprint.industry || 'this industry'}. What was the lesson and how did you apply it afterward?`,
-            ideal_answer_hints: 'Meaningful customer interaction, clear lesson learned, applied knowledge'
-          }
-        } else if (questionType === 4 || mentionedMistakes) {
-          question = {
-            question_text: `Describe a time you made a significant mistake at work that affected others. How did you handle it, and what changed in your approach afterward?`,
-            ideal_answer_hints: 'Admits real mistake, shows accountability, demonstrates growth'
-          }
-        } else {
-          const challenges = blueprint.challenges || []
-          const challenge = challenges[i % challenges.length] || 'competing priorities'
-          question = {
-            question_text: `You're facing ${challenge} and your manager isn't available. You need to make a call that could impact the business. Walk me through how you'd make that decision.`,
-            ideal_answer_hints: 'Decision-making process, considers stakeholders, shows judgment'
-          }
-        }
-
-        adaptiveQuestions.push(question)
-      }
-
-    setAllQuestions([...allQuestions, ...adaptiveQuestions])
-    const newTotal = 6 + adaptiveCount          // ← add this line
-    setTotalQuestions(newTotal)
-    setAdaptiveQuestionsGenerated(true)
-    setIsGeneratingAdaptive(false)
-    return newTotal                              // ← add this line
-
-    } catch (error) {
-      console.error('Error generating adaptive questions:', error)
-
-      const fallback = [
-        {
-          question_text: "Describe the most challenging professional situation you've ever faced. What made it so difficult, and how did you navigate through it?",
-          ideal_answer_hints: "Significant challenge, complexity described, resolution shown"
-        },
-        {
-          question_text: "Tell me about a time you had to adapt your communication style to work effectively with someone very different from you.",
-          ideal_answer_hints: "Shows adaptability, self-awareness, successful collaboration"
-        },
-        {
-          question_text: "What's a professional goal you set for yourself that you didn't achieve? What happened, and what did you learn?",
-          ideal_answer_hints: "Shows vulnerability, reflection, growth mindset"
-        }
-      ]
-
-    setAllQuestions([...allQuestions, ...fallback])
-    const newTotal = 6 + 3                      // ← add this line
-    setTotalQuestions(newTotal)
-    setAdaptiveQuestionsGenerated(true)
-    setIsGeneratingAdaptive(false)
-    return newTotal                             // ← add this line
+    if (!responses || responses.length < 6) {
+      throw new Error('Not enough responses')
     }
-  }
 
+    const qualityScores = responses.map(r => ({
+      question: r.question_text,
+      answer: r.answer_text,
+      score: analyzeAnswerQuality(r.answer_text)
+    }))
+
+    const avgQuality = qualityScores.reduce((sum, q) => sum + q.score, 0) / 6
+    const weakAnswers = qualityScores.filter(q => q.score < 5)
+    const vagueAnswers = qualityScores.filter(q => q.answer.split(' ').length < 30)
+
+    let adaptiveCount
+    if (avgQuality >= 7 && weakAnswers.length <= 1) {
+      adaptiveCount = 2
+    } else if (avgQuality >= 5.5 && weakAnswers.length <= 3) {
+      adaptiveCount = 3
+    } else if (weakAnswers.length >= 4 || vagueAnswers.length >= 4) {
+      adaptiveCount = 5
+    } else {
+      adaptiveCount = 4
+    }
+
+    console.log(`Generating ${adaptiveCount} adaptive questions based on performance`)
+
+    const blueprint = assessment.blueprint || {}
+    const adaptiveQuestions = []
+
+    const mentionedStress = responses.some(r =>
+      /stress|pressure|busy|rush|overwhelm/i.test(r.answer_text)
+    )
+    const mentionedTeamwork = responses.some(r =>
+      /team|colleague|coworker|together|collaborate/i.test(r.answer_text)
+    )
+    const mentionedCustomers = responses.some(r =>
+      /customer|guest|client|patron/i.test(r.answer_text)
+    )
+    const mentionedMistakes = responses.some(r =>
+      /mistake|error|wrong|fail|problem/i.test(r.answer_text)
+    )
+
+    for (let i = 0; i < adaptiveCount; i++) {
+      const targetAnswer = weakAnswers[i] || qualityScores[i]
+      let question
+
+      const questionType = i % 5
+
+      if (questionType === 0 && targetAnswer.answer.split(' ').length < 30) {
+        question = {
+          question_text: `Earlier you mentioned "${targetAnswer.answer.substring(0, 50)}..." - walk me through that situation in detail. What EXACTLY happened, what did YOU specifically do, and what was the outcome?`,
+          ideal_answer_hints: 'Detailed step-by-step account, specific actions, concrete results'
+        }
+      } else if (questionType === 1 && mentionedStress) {
+        question = {
+          question_text: `You mentioned dealing with stressful situations. Tell me about a time when you had to maintain quality standards despite being under extreme time pressure. What was at stake?`,
+          ideal_answer_hints: 'Specific high-pressure scenario, quality maintained, stakes described'
+        }
+      } else if (questionType === 2 && mentionedTeamwork) {
+        question = {
+          question_text: `Describe a situation where you had to get results from a team member who wasn't cooperating or wasn't pulling their weight. How did you handle it?`,
+          ideal_answer_hints: 'Difficult team situation, tactful approach, resolution achieved'
+        }
+      } else if (questionType === 3 && mentionedCustomers) {
+        question = {
+          question_text: `Tell me about a customer interaction that taught you something important about ${blueprint.industry || 'this industry'}. What was the lesson and how did you apply it afterward?`,
+          ideal_answer_hints: 'Meaningful customer interaction, clear lesson learned, applied knowledge'
+        }
+      } else if (questionType === 4 || mentionedMistakes) {
+        question = {
+          question_text: `Describe a time you made a significant mistake at work that affected others. How did you handle it, and what changed in your approach afterward?`,
+          ideal_answer_hints: 'Admits real mistake, shows accountability, demonstrates growth'
+        }
+      } else {
+        const challenges = blueprint.challenges || []
+        const challenge = challenges[i % challenges.length] || 'competing priorities'
+        question = {
+          question_text: `You're facing ${challenge} and your manager isn't available. You need to make a call that could impact the business. Walk me through how you'd make that decision.`,
+          ideal_answer_hints: 'Decision-making process, considers stakeholders, shows judgment'
+        }
+      }
+
+      adaptiveQuestions.push(question)
+    }
+
+    // ✅ these are now properly INSIDE the try block
+    setAllQuestions([...allQuestions, ...adaptiveQuestions])
+    const newTotal = 6 + adaptiveCount
+    setTotalQuestions(newTotal)
+    setAdaptiveQuestionsGenerated(true)
+    setIsGeneratingAdaptive(false)
+    return newTotal
+
+  } catch (error) {
+    console.error('Error generating adaptive questions:', error)
+
+    const fallback = [
+      {
+        question_text: "Describe the most challenging professional situation you've ever faced. What made it so difficult, and how did you navigate through it?",
+        ideal_answer_hints: "Significant challenge, complexity described, resolution shown"
+      },
+      {
+        question_text: "Tell me about a time you had to adapt your communication style to work effectively with someone very different from you.",
+        ideal_answer_hints: "Shows adaptability, self-awareness, successful collaboration"
+      },
+      {
+        question_text: "What's a professional goal you set for yourself that you didn't achieve? What happened, and what did you learn?",
+        ideal_answer_hints: "Shows vulnerability, reflection, growth mindset"
+      }
+    ]
+
+    // ✅ these are properly INSIDE the catch block
+    setAllQuestions([...allQuestions, ...fallback])
+    const newTotal = 6 + 3
+    setTotalQuestions(newTotal)
+    setAdaptiveQuestionsGenerated(true)
+    setIsGeneratingAdaptive(false)
+    return newTotal
+  }
+}
+  
 const handleNextQuestion = async () => {
   if (!answer.trim()) {
     alert('Please provide an answer before continuing')
