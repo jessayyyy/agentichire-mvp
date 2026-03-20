@@ -283,8 +283,9 @@ const generateAdaptiveQuestions = async () => {
     }
 
     // ✅ these are now properly INSIDE the try block
-    setAllQuestions([...allQuestions, ...adaptiveQuestions])
-    const newTotal = 6 + adaptiveCount
+    const newQuestions = [...allQuestions, ...adaptiveQuestions]
+    setAllQuestions(newQuestions)
+    const newTotal = newQuestions.length        // ✅ use actual length, not 6 + adaptiveCount
     setTotalQuestions(newTotal)
     setAdaptiveQuestionsGenerated(true)
     setIsGeneratingAdaptive(false)
@@ -309,8 +310,9 @@ const generateAdaptiveQuestions = async () => {
     ]
 
     // ✅ these are properly INSIDE the catch block
-    setAllQuestions([...allQuestions, ...fallback])
-    const newTotal = 6 + 3
+    const newQuestions = [...allQuestions, ...fallback]
+    setAllQuestions(newQuestions)
+    const newTotal = newQuestions.length        // ✅ use actual length
     setTotalQuestions(newTotal)
     setAdaptiveQuestionsGenerated(true)
     setIsGeneratingAdaptive(false)
@@ -339,19 +341,20 @@ const handleNextQuestion = async () => {
       copy_paste_attempts: copyPasteAttempts
     }])
 
-  let total = totalQuestions || allQuestions.length  // ✅ declare with let
+  let total = totalQuestions || allQuestions.length
 
   if (currentQuestion === 5 && !adaptiveQuestionsGenerated) {
     const newTotal = await generateAdaptiveQuestions()
     total = newTotal
   }
 
-  const isLastQuestion = currentQuestion >= total - 1
+  const nextQuestion = currentQuestion + 1  // ✅ check NEXT question, not current
+  const isLastQuestion = nextQuestion >= total
 
   if (isLastQuestion) {
     handleSubmitAssessment()
   } else {
-    setCurrentQuestion(currentQuestion + 1)
+    setCurrentQuestion(nextQuestion)
     setAnswer('')
     setCopyPasteAttempts(0)
     setTypingStats({
