@@ -77,43 +77,6 @@ export default function CreateAssessment() {
     }
 
     try {
-      const prompt = `You are creating a hiring assessment for this role:
-
-Role: ${roleTitle}
-Industry: ${industry}
-
-Key Responsibilities:
-${blueprint.responsibilities.map((r, i) => `${i + 1}. ${r}`).join('\n')}
-
-Must-Have Skills:
-${blueprint.must_have_skills.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-
-Deal-Breakers:
-${blueprint.deal_breakers.map((d, i) => `${i + 1}. ${d}`).join('\n')}
-
-Typical Challenges:
-${blueprint.challenges.map((c, i) => `${i + 1}. ${c}`).join('\n')}
-
-Assessment Focus: ${blueprint.focus_areas.join(', ')}
-
-Generate 6 behavioral interview questions that:
-1. Test the must-have skills
-2. Probe for deal-breaker behaviors
-3. Present realistic challenges for this specific role
-4. Are NOT generic (tailor them to THIS job)
-5. Focus on the priority areas specified
-
-Return ONLY a JSON array with 6 questions (no markdown, no backticks):
-[
-  {
-    "question_text": "specific question here",
-    "ideal_answer_hints": "what a good answer should include"
-  },
-  ...
-]`
-
-      // For MVP, using fallback questions
-      // TODO: Add real Claude API call here
       const fallbackQuestions = [
         {
           question_text: `Tell me about a time you had to handle one of these responsibilities: ${blueprint.responsibilities[0] || 'a key task'}. What was the situation and outcome?`,
@@ -151,82 +114,66 @@ Return ONLY a JSON array with 6 questions (no markdown, no backticks):
     }
   }
 
-const handleCreateAssessment = async () => {
-  if (!roleTitle.trim()) {
-    alert('Please enter a role title')
-    return
-  }
-
-  if (!industry) {
-    alert('Please select an industry')
-    return
-  }
-
-  if (generatedQuestions.length === 0) {
-    alert('Please generate questions first')
-    return
-  }
-
-  setLoading(true)
-
-  try {
-    const blueprint = {
-      role_title: roleTitle,
-      industry,
-      responsibilities: responsibilities.filter(r => r.trim()),
-      must_have_skills: mustHaveSkills.filter(s => s.trim()),
-      deal_breakers: dealBreakers.filter(d => d.trim()),
-      challenges: challenges.filter(c => c.trim()),
-      focus_areas: focusAreas
+  const handleCreateAssessment = async () => {
+    if (!roleTitle.trim()) {
+      alert('Please enter a role title')
+      return
     }
 
-    console.log('Creating assessment with:', { roleTitle, generatedQuestions, blueprint })
+    if (!industry) {
+      alert('Please select an industry')
+      return
+    }
 
-    // Create assessment
-    const { data: assessment, error: assessmentError } = await supabase
-      .from('assessments')
-      .insert([{
-        employer_email: employerEmail,
+    if (generatedQuestions.length === 0) {
+      alert('Please generate questions first')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const blueprint = {
         role_title: roleTitle,
-        selected_questions: generatedQuestions,
-        blueprint: blueprint
-      }])
-      .select()
-      .single()
+        industry,
+        responsibilities: responsibilities.filter(r => r.trim()),
+        must_have_skills: mustHaveSkills.filter(s => s.trim()),
+        deal_breakers: dealBreakers.filter(d => d.trim()),
+        challenges: challenges.filter(c => c.trim()),
+        focus_areas: focusAreas
+      }
 
-    if (assessmentError) {
-      console.error('Assessment error:', assessmentError)
-      alert(`Error creating assessment: ${assessmentError.message}`)
+      console.log('Creating assessment with:', { roleTitle, generatedQuestions, blueprint })
+
+      const { data: assessment, error: assessmentError } = await supabase
+        .from('assessments')
+        .insert([{
+          employer_email: employerEmail,
+          role_title: roleTitle,
+          selected_questions: generatedQuestions,
+          blueprint: blueprint
+        }])
+        .select()
+        .single()
+
+      if (assessmentError) {
+        console.error('Assessment error:', assessmentError)
+        alert(`Error creating assessment: ${assessmentError.message}`)
+        setLoading(false)
+        return
+      }
+
+      console.log('Assessment created:', assessment)
+
+      const link = `${window.location.origin}/assessment/${assessment.id}`
+      setAssessmentLink(link)
       setLoading(false)
-      return
-    }
 
-    console.log('Assessment created:', assessment)
-
-    // Generate link using assessment ID
-    const link = `${window.location.origin}/assessment/${assessment.id}`
-
-    setAssessmentLink(link)
-    setLoading(false)
-
-  } catch (error) {
-    console.error('Unexpected error:', error)
-    alert(`Error: ${error.message}`)
-    setLoading(false)
-  }
-}
-
-// Don't create any candidate entries yet - they'll be created when someone clicks the link
-
-    if (candidateError) {
-      alert('Error generating link')
-      console.error(candidateError)
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      alert(`Error: ${error.message}`)
       setLoading(false)
-      return
     }
-
-    setAssessmentLink(link)
-    setLoading(false)
   }
 
   const copyLink = () => {
