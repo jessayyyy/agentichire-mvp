@@ -28,20 +28,26 @@ export default function TakeAssessment() {
     loadAssessment()
   }, [linkId])
 
-  useEffect(() => {
-    if (stage === 'assessment' && timeRemaining > 0) {
-      const timer = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1) {
-            handleAutoSubmit()
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-      return () => clearInterval(timer)
-    }
-  }, [stage, timeRemaining])
+useEffect(() => {
+  if (stage === 'assessment') {
+    // ✅ store the end time when assessment starts
+    const endTime = Date.now() + timeRemaining * 1000
+
+    const timer = setInterval(() => {
+      const remaining = Math.ceil((endTime - Date.now()) / 1000)
+
+      if (remaining <= 0) {
+        clearInterval(timer)
+        setTimeRemaining(0)
+        handleAutoSubmit()
+      } else {
+        setTimeRemaining(remaining)
+      }
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }
+}, [stage]) // ✅ only re-run when stage changes, not every second
 
   const loadAssessment = async () => {
     const assessmentId = linkId
