@@ -151,24 +151,25 @@ Return ONLY a JSON array with 6 questions (no markdown, no backticks):
     }
   }
 
-  const handleCreateAssessment = async () => {
-    if (!roleTitle.trim()) {
-      alert('Please enter a role title')
-      return
-    }
+const handleCreateAssessment = async () => {
+  if (!roleTitle.trim()) {
+    alert('Please enter a role title')
+    return
+  }
 
-    if (!industry) {
-      alert('Please select an industry')
-      return
-    }
+  if (!industry) {
+    alert('Please select an industry')
+    return
+  }
 
-    if (generatedQuestions.length === 0) {
-      alert('Please generate questions first')
-      return
-    }
+  if (generatedQuestions.length === 0) {
+    alert('Please generate questions first')
+    return
+  }
 
-    setLoading(true)
+  setLoading(true)
 
+  try {
     const blueprint = {
       role_title: roleTitle,
       industry,
@@ -179,30 +180,41 @@ Return ONLY a JSON array with 6 questions (no markdown, no backticks):
       focus_areas: focusAreas
     }
 
+    console.log('Creating assessment with:', { roleTitle, generatedQuestions, blueprint })
+
     // Create assessment
-console.log('Generated questions:', generatedQuestions)
-console.log('Blueprint:', blueprint)
+    const { data: assessment, error: assessmentError } = await supabase
+      .from('assessments')
+      .insert([{
+        employer_email: employerEmail,
+        role_title: roleTitle,
+        selected_questions: generatedQuestions,
+        blueprint: blueprint
+      }])
+      .select()
+      .single()
 
-const { data: assessment, error: assessmentError } = await supabase
-  .from('assessments')
-  .insert([{
-    employer_email: employerEmail,
-    role_title: roleTitle,
-    selected_questions: generatedQuestions,
-    blueprint: blueprint
-  }])
-  .select()
-  .single()
+    if (assessmentError) {
+      console.error('Assessment error:', assessmentError)
+      alert(`Error creating assessment: ${assessmentError.message}`)
+      setLoading(false)
+      return
+    }
 
-if (assessmentError) {
-  console.error('Assessment error:', assessmentError)
-  alert(`Error creating assessment: ${assessmentError.message}`)
-  setLoading(false)
-  return
+    console.log('Assessment created:', assessment)
+
+    // Generate link using assessment ID
+    const link = `${window.location.origin}/assessment/${assessment.id}`
+
+    setAssessmentLink(link)
+    setLoading(false)
+
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    alert(`Error: ${error.message}`)
+    setLoading(false)
+  }
 }
-
-// Generate unique link - use assessment ID directly
-const link = `${window.location.origin}/assessment/${assessment.id}`
 
 // Don't create any candidate entries yet - they'll be created when someone clicks the link
 
