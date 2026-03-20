@@ -471,7 +471,6 @@ await supabase
             <ul className="list-disc list-inside space-y-1 text-blue-800">
               <li>You have <strong>20 minutes</strong> to complete this assessment</li>
               <li>Answer all questions thoughtfully and honestly</li>
-              <li>Copy-paste is disabled for fairness</li>
               <li>Provide specific examples from your real experience</li>
               <li>Timer will auto-submit when time expires</li>
             </ul>
